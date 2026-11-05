@@ -1,0 +1,65 @@
+{
+ "id": "free-wifi-pulse",
+ "name": "Free WiFi Pulse",
+ "category": "Cafe & Wi-Fi",
+ "layout": "C",
+ "accent": "#ffd23f",
+ "dark_art": true,
+ "qr": {
+  "x": 262,
+  "y": 430,
+  "w": 500,
+  "h": 500,
+  "r": 30
+ },
+ "frame": null,
+ "texts": [
+  {
+   "key": "title",
+   "x": 512,
+   "y": 372,
+   "size": 40,
+   "font": "script",
+   "color": "#ffffff",
+   "maxw": 380,
+   "rules": [
+    262,
+    762
+   ]
+  },
+  {
+   "key": "name",
+   "x": 512,
+   "y": 1040,
+   "size": 110,
+   "font": "script",
+   "color": "#ffffff",
+   "maxw": 640,
+   "baseline": "s",
+   "glow": 22,
+   "swoosh": 40
+  },
+  {
+   "key": "idline",
+   "x": 512,
+   "y": 1128,
+   "size": 26,
+   "font": "mono",
+   "color": "#fff6d6",
+   "maxw": 460
+  },
+  {
+   "key": "tag",
+   "x": 512,
+   "y": 1176,
+   "size": 22,
+   "font": "mono",
+   "color": "#ffd23f",
+   "maxw": 340,
+   "rules": [
+    262,
+    762
+   ]
+  }
+ ]
+}

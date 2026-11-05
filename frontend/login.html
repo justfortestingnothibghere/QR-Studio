@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Log in | QR Studio</title>
+<meta name="description" content="Log in to QR Studio.">
+<meta name="theme-color" content="#07070d">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<header id="nav"></header>
+<main class="wrap ">
+
+<div class="authbox card">
+  <h1>Welcome back</h1><p class="muted">Log in to see your QRs, orders and downloads.</p>
+  <form id="f" class="stack pad" novalidate>
+    <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" required></div>
+    <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+    <button class="btn lg" id="go" type="submit">Log in</button>
+    <p class="msg" id="msg" role="alert"></p>
+  </form>
+  <p class="small muted">New here? <a href="/signup" id="toSignup">Create an account</a></p>
+</div>
+
+</main>
+<footer id="footer"></footer>
+<script src="/assets/js/app.js"></script><script src="/assets/js/auth.js"></script>
+</body>
+</html>

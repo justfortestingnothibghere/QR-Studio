@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Studio | QR Studio</title>
+<meta name="description" content="Design your QR poster, preview it free and unlock the clean download.">
+<meta name="theme-color" content="#07070d">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<header id="nav"></header>
+<main class="wrap ">
+
+<div class="studio">
+  <section class="stage" aria-label="Poster preview">
+    <div class="frame" id="frame"><img id="pv" alt="Poster preview with your QR code" draggable="false"><div class="shield" id="shield"></div><div class="busy hide" id="busy">Rendering…</div></div>
+    <div class="chips"><span class="chip warn" id="chipMode">Preview · watermarked</span><span class="chip" id="chipScan">Checking scan…</span></div>
+  </section>
+  <div class="stack">
+    <div class="card">
+      <div class="tabs" role="tablist" id="tabs">
+        <button role="tab" data-tab="content" aria-selected="true">QR content</button>
+        <button role="tab" data-tab="look" aria-selected="false">Look</button>
+        <button role="tab" data-tab="export" aria-selected="false">Download</button>
+      </div>
+
+      <div data-pane="content" class="stack">
+        <div><div class="lab">What should the QR open?</div>
+          <div class="seg" id="kind"><button data-v="upi">UPI payment</button><button data-v="url">Link</button><button data-v="text">Text</button><button data-v="wifi">Wi-Fi</button><button data-v="contact">Contact</button></div></div>
+        <div class="grid2">
+          <div class="field" data-k="upi"><label for="upi_id">UPI ID</label><input id="upi_id" type="text" autocomplete="off" spellcheck="false" placeholder="name@bank"></div>
+          <div class="field" data-k="upi"><label for="amount">Amount (optional)</label><input id="amount" type="number" min="0" step="0.01" placeholder="Any amount"></div>
+          <div class="field" data-k="upi"><label for="note">Note (optional)</label><input id="note" type="text" maxlength="40" placeholder="Shop order"></div>
+          <div class="field wide" data-k="url"><label for="url">Link</label><input id="url" type="url" spellcheck="false" placeholder="https://"></div>
+          <div class="field wide" data-k="text"><label for="text">Text</label><textarea id="text" maxlength="400"></textarea></div>
+          <div class="field" data-k="wifi"><label for="ssid">Network name</label><input id="ssid" type="text" maxlength="32"></div>
+          <div class="field" data-k="wifi"><label for="wpass">Password</label><input id="wpass" type="text" maxlength="64"></div>
+          <div class="field" data-k="wifi"><label for="wenc">Security</label><select id="wenc"><option value="WPA">WPA / WPA2</option><option value="WEP">WEP</option><option value="nopass">None</option></select></div>
+          <div class="field" data-k="contact"><label for="phone">Phone</label><input id="phone" type="tel" maxlength="20"></div>
+          <div class="field" data-k="contact"><label for="email">Email</label><input id="email" type="email" maxlength="80"></div>
+        </div>
+        <label class="check hide" id="dynRow"><input id="dynamic" type="checkbox"><span>Dynamic link with scan counter<small>The QR points to a short link we host, so you can change the destination later. Included in the price.</small></span></label>
+        <p class="msg bad" id="err" role="alert"></p>
+      </div>
+
+      <div data-pane="look" class="stack hide">
+        <div><div class="lab">Theme</div><div class="tmini" id="themes"></div><p class="small muted pad"><a href="/themes">See all</a> · <a href="/theme-maker">Make your own theme</a></p></div>
+        <div class="grid2">
+          <div class="field"><label for="name">Name on poster</label><input id="name" type="text" maxlength="28"></div>
+          <div class="field"><label for="title">Panel title</label><input id="title" type="text" maxlength="30"></div>
+          <div class="field"><label for="tag">Footer line</label><input id="tag" type="text" maxlength="26"></div>
+        </div>
+        <div><div class="lab">QR dots</div><div class="seg" id="dot"><button data-v="square">Square</button><button data-v="dot">Dots</button><button data-v="round">Rounded</button></div></div>
+        <div><div class="lab">QR ink</div><div class="swatches" id="ink" role="group" aria-label="QR ink colour"></div></div>
+        <div><div class="lab">Centre logo</div><div class="seg" id="logo"><button data-v="none">None</button><button data-v="letter">Initial</button><button data-v="image">My logo</button></div>
+          <div class="hide pad" id="logoBox"><div class="seg" id="logoList"></div><label for="logoFile" class="pad">Upload a logo (PNG or JPG)</label><input id="logoFile" type="file" accept="image/png,image/jpeg,image/webp"></div></div>
+      </div>
+
+      <div data-pane="export" class="stack hide">
+        <div><h3>Price</h3><ul class="price" id="priceList"></ul><div class="total"><span>Total</span><b id="priceTotal">₹0</b></div>
+          <label class="check pad"><input id="printPack" type="checkbox"><span>Print pack (+₹<span id="printPrice">10</span>)<small>Vector SVG and transparent PNG of the QR alone, for standees and stickers.</small></span></label></div>
+        <div class="actions"><button class="btn ghost" id="saveBtn" type="button">Save to my QRs</button><button class="btn" id="unlockBtn" type="button">Unlock clean download</button></div>
+        <p class="msg" id="saveMsg" role="status"></p>
+        <div id="payArea" class="hide"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+<footer id="footer"></footer>
+<script src="/assets/js/app.js"></script><script src="/assets/js/pay.js"></script><script src="/assets/js/studio.js"></script>
+</body>
+</html>

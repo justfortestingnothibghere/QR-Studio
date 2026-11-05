@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Admin | QR Studio</title>
+<meta name="description" content="QR Studio admin.">
+<meta name="theme-color" content="#07070d">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<header id="nav"></header>
+<main class="wrap ">
+
+<h1 class="h1s">Admin</h1>
+<div class="stat" id="stats"></div>
+<div class="card"><h3>Payment mailbox</h3><p class="small muted" id="mbox"></p></div>
+<div class="card"><h3>Database backup</h3><p class="small muted">Download a copy of all users, QRs and orders. Do this regularly, for example once a week. Uploaded images are not included.</p><p class="pad"><a class="btn ghost sm" href="/api/admin/backup">Download backup</a></p></div>
+<section class="section"><h2>Add a payment by hand</h2><p class="muted">Use this if a payment email never arrived. The customer still has to claim it with their UTR.</p>
+<form id="payForm" class="verify pad" novalidate><input id="aUtr" type="text" inputmode="numeric" maxlength="12" placeholder="12-digit UTR" aria-label="UTR"><input id="aAmt" type="number" step="0.01" min="0" placeholder="Amount ₹" aria-label="Amount"><button class="btn" type="submit">Add payment</button></form><p class="msg" id="aMsg" role="status"></p></section>
+<section class="section"><h2>Recent orders</h2><div class="card tablewrap"><table><thead><tr><th>Order</th><th>User</th><th>Amount</th><th>Status</th><th>UTR</th><th>Created</th></tr></thead><tbody id="oBody"></tbody></table></div></section>
+<section class="section"><h2>Payments received</h2><div class="card tablewrap"><table><thead><tr><th>UTR</th><th>Amount</th><th>Payer</th><th>Source</th><th>Used by</th><th>Received</th></tr></thead><tbody id="pBody"></tbody></table></div></section>
+<section class="section"><h2>Users</h2><div class="card tablewrap"><table><thead><tr><th>Email</th><th>Name</th><th>Joined</th><th>Pass</th><th></th></tr></thead><tbody id="uBody"></tbody></table></div></section>
+
+</main>
+<footer id="footer"></footer>
+<script src="/assets/js/app.js"></script><script src="/assets/js/admin.js"></script>
+</body>
+</html>

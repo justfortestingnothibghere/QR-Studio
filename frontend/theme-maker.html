@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Theme Maker | QR Studio</title>
+<meta name="description" content="Upload your own artwork and turn it into a private QR poster theme.">
+<meta name="theme-color" content="#07070d">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<header id="nav"></header>
+<main class="wrap ">
+
+<h1 class="h1s">Theme Maker</h1>
+<p class="muted">Upload your own portrait artwork and place the QR on it. Your themes are private and only usable from your account. Use only artwork you own or have permission to use.</p>
+<div class="studio pad">
+  <div class="stage"><div class="canvasbox"><canvas id="cv" width="400" height="600" aria-label="Layout preview"></canvas></div><p class="small muted pad">The white box shows where your QR will sit. Text and frame are added by the layout.</p></div>
+  <form class="card stack" id="f" novalidate>
+    <div class="field"><label for="img">Artwork (JPG, PNG or WebP, portrait works best)</label><input id="img" type="file" accept="image/png,image/jpeg,image/webp" required></div>
+    <div class="field"><label for="name">Theme name</label><input id="name" type="text" maxlength="30" value="My theme"></div>
+    <div><div class="lab">Layout</div><div class="seg" id="tpl">
+      <button type="button" data-v="A">Framed panel</button><button type="button" data-v="B">Name above</button><button type="button" data-v="C">Title and name</button><button type="button" data-v="D">QR only (my placement)</button></div></div>
+    <div class="stack hide" id="place">
+      <div class="field"><label for="qs">QR size</label><input id="qs" type="range" min="200" max="760" value="500"></div>
+      <div class="field"><label for="qx">Left to right</label><input id="qx" type="range" min="0" max="1024" value="262"></div>
+      <div class="field"><label for="qy">Top to bottom</label><input id="qy" type="range" min="0" max="1536" value="430"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="accent">Accent</label><input id="accent" type="color" value="#4da3ff"></div>
+      <div class="field"><label for="ink">Main text</label><input id="ink" type="color" value="#ffffff"></div>
+      <div class="field"><label for="soft">Small text</label><input id="soft" type="color" value="#e6f0ff"></div>
+    </div>
+    <label class="check"><input id="own" type="checkbox"><span>This artwork is mine or I have permission to use it.</span></label>
+    <button class="btn lg" id="go" type="submit">Save theme</button>
+    <p class="msg" id="msg" role="alert"></p>
+  </form>
+</div>
+
+</main>
+<footer id="footer"></footer>
+<script src="/assets/js/app.js"></script><script src="/assets/js/thememaker.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>My QRs | QR Studio</title>
+<meta name="description" content="Your saved QRs, orders and themes.">
+<meta name="theme-color" content="#07070d">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<header id="nav"></header>
+<main class="wrap ">
+
+<h1 class="h1s">My QRs</h1>
+<div class="stat" id="stats"></div>
+<div class="tabs" role="tablist" id="tabs">
+  <button role="tab" data-tab="qrs" aria-selected="true">My QRs</button>
+  <button role="tab" data-tab="orders" aria-selected="false">History</button>
+  <button role="tab" data-tab="themes" aria-selected="false">My themes</button>
+  <button role="tab" data-tab="pass" aria-selected="false">Pass</button>
+  <button role="tab" data-tab="account" aria-selected="false">Account</button>
+</div>
+<section data-pane="qrs"><div class="qgrid" id="qgrid"></div><p class="muted hide" id="qempty">No saved QRs yet. <a href="/studio">Open the Studio</a> to make one.</p></section>
+<section data-pane="orders" class="hide"><div class="card tablewrap"><table><thead><tr><th>Order</th><th>For</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody id="obody"></tbody></table></div></section>
+<section data-pane="themes" class="hide"><div class="tgrid" id="mythemes"></div><p class="muted hide" id="tempty">You have no custom themes. <a href="/theme-maker">Make one</a>.</p></section>
+<section data-pane="pass" class="hide"><div class="card"><h2>Unlimited pass</h2><p class="muted" id="passText"></p><div id="passPay" class="pad"></div></div></section>
+<section data-pane="account" class="hide stack">
+  <div class="card"><h3>Change password</h3><form id="pwForm" class="stack pad" novalidate><div class="grid2"><div class="field"><label for="oldpw">Current password</label><input id="oldpw" type="password" autocomplete="current-password"></div><div class="field"><label for="newpw">New password</label><input id="newpw" type="password" autocomplete="new-password"></div></div><div><button class="btn" type="submit">Update password</button></div><p class="msg" id="pwMsg" role="status"></p></form></div>
+  <div class="card"><h3>Delete my account</h3><p class="muted">Removes your account, saved QRs, themes and logos. Order records needed for accounting are kept without your details. This cannot be undone.</p><form id="delForm" class="stack pad" novalidate><div class="field"><label for="delpw">Your password</label><input id="delpw" type="password" autocomplete="current-password"></div><div><button class="btn danger" type="submit">Delete my account</button></div><p class="msg" id="delMsg" role="alert"></p></form></div>
+</section>
+
+</main>
+<footer id="footer"></footer>
+<script src="/assets/js/app.js"></script><script src="/assets/js/pay.js"></script><script src="/assets/js/dashboard.js"></script>
+</body>
+</html>

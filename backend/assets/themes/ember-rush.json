@@ -1,0 +1,59 @@
+{
+ "id": "ember-rush",
+ "name": "Ember Rush",
+ "category": "Energy",
+ "layout": "A",
+ "accent": "#ff8a1f",
+ "dark_art": true,
+ "qr": {
+  "x": 298,
+  "y": 633,
+  "w": 428,
+  "h": 433,
+  "r": 26
+ },
+ "frame": {
+  "x": 270,
+  "y": 562,
+  "w": 484,
+  "h": 636,
+  "r": 36
+ },
+ "texts": [
+  {
+   "key": "title",
+   "x": 512,
+   "y": 598,
+   "size": 34,
+   "font": "script",
+   "color": "#ffffff",
+   "maxw": 330,
+   "rules": [
+    292,
+    732
+   ]
+  },
+  {
+   "key": "idline",
+   "x": 512,
+   "y": 1100,
+   "size": 25,
+   "font": "mono",
+   "color": "#ffe9d2",
+   "maxw": 420
+  },
+  {
+   "key": "tag",
+   "x": 512,
+   "y": 1148,
+   "size": 21,
+   "font": "mono",
+   "color": "#ff8a1f",
+   "maxw": 300,
+   "rules": [
+    300,
+    724
+   ]
+  }
+ ]
+}

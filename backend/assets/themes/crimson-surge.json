@@ -1,0 +1,59 @@
+{
+ "id": "crimson-surge",
+ "name": "Crimson Surge",
+ "category": "Energy",
+ "layout": "A",
+ "accent": "#ff2638",
+ "dark_art": true,
+ "qr": {
+  "x": 298,
+  "y": 633,
+  "w": 428,
+  "h": 433,
+  "r": 26
+ },
+ "frame": {
+  "x": 270,
+  "y": 562,
+  "w": 484,
+  "h": 636,
+  "r": 36
+ },
+ "texts": [
+  {
+   "key": "title",
+   "x": 512,
+   "y": 598,
+   "size": 34,
+   "font": "script",
+   "color": "#ffffff",
+   "maxw": 330,
+   "rules": [
+    292,
+    732
+   ]
+  },
+  {
+   "key": "idline",
+   "x": 512,
+   "y": 1100,
+   "size": 25,
+   "font": "mono",
+   "color": "#ffe1e3",
+   "maxw": 420
+  },
+  {
+   "key": "tag",
+   "x": 512,
+   "y": 1148,
+   "size": 21,
+   "font": "mono",
+   "color": "#ff2638",
+   "maxw": 300,
+   "rules": [
+    300,
+    724
+   ]
+  }
+ ]
+}

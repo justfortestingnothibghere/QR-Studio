@@ -1,0 +1,91 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "serve_frontend": true,
+    "frontend_dir": "../frontend",
+    "public_url": "http://localhost:8000",
+    "trust_proxy_headers": false,
+    "client_ip_header": "X-Forwarded-For",
+    "proxy_hops": 1
+  },
+  "security": {
+    "secret_key": "",
+    "cookie_name": "qs_session",
+    "cookie_secure": false,
+    "session_days": 30,
+    "password_min_length": 8,
+    "allowed_origins": [
+      "http://localhost:8000"
+    ],
+    "signup_open": true
+  },
+  "storage": {
+    "data_dir": "data",
+    "database": "qrstudio.db",
+    "max_upload_mb": 8,
+    "max_image_megapixels": 40
+  },
+  "limits": {
+    "max_custom_themes_per_user": 5,
+    "max_saved_qrs_per_user": 200,
+    "max_logos_per_user": 10,
+    "rate": {
+      "auth_per_10min": 30,
+      "preview_per_min": 90,
+      "upload_per_10min": 20,
+      "verify_per_min": 8,
+      "order_per_10min": 20
+    }
+  },
+  "payments": {
+    "mode": "mock",
+    "upi_id": "yourupi@fam",
+    "payee_name": "TeamDev",
+    "order_expiry_minutes": 45,
+    "payment_valid_minutes": 120,
+    "imap": {
+      "enabled": false,
+      "host": "imap.gmail.com",
+      "port": 993,
+      "user": "teamdevmail@gmail.com",
+      "app_password": "",
+      "folder": "INBOX",
+      "poll_seconds": 20,
+      "allowed_senders": [
+        "famapp.in"
+      ],
+      "require_dkim": true,
+      "authserv_id": "mx.google.com",
+      "lookback_hours": 24
+    }
+  },
+  "pricing": {
+    "base": 29,
+    "logo": 10,
+    "custom_theme": 20,
+    "dynamic": 30,
+    "print": 10,
+    "cap": 99,
+    "pass_price": 99,
+    "pass_days": 30
+  },
+  "render": {
+    "preview_scale": 0.625,
+    "export_scale": 2.0,
+    "preview_jpeg_quality": 70,
+    "watermark_text": "TEAMDEV · PREVIEW",
+    "fonts": {}
+  },
+  "admin": {
+    "emails": []
+  },
+  "smtp": {
+    "enabled": false,
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "user": "",
+    "password": "",
+    "from": "QR Studio <no-reply@teamdev.sbs>"
+  }
+}

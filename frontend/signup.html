@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sign up | QR Studio</title>
+<meta name="description" content="Create your free QR Studio account.">
+<meta name="theme-color" content="#07070d">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<header id="nav"></header>
+<main class="wrap ">
+
+<div class="authbox card">
+  <h1>Create your account</h1><p class="muted">Free. Build, preview and save as many designs as you like.</p>
+  <form id="f" class="stack pad" novalidate>
+    <div class="field"><label for="name">Your name</label><input id="name" type="text" autocomplete="name" maxlength="40" required></div>
+    <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" required></div>
+    <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="new-password" minlength="8" required><p class="small muted pad">At least 8 characters.</p></div>
+    <label class="check"><input id="terms" type="checkbox"><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</span></label>
+    <button class="btn lg" id="go" type="submit">Create account</button>
+    <p class="msg" id="msg" role="alert"></p>
+  </form>
+  <p class="small muted">Already have an account? <a href="/login" id="toLogin">Log in</a></p>
+</div>
+
+</main>
+<footer id="footer"></footer>
+<script src="/assets/js/app.js"></script><script src="/assets/js/auth.js"></script>
+</body>
+</html>
