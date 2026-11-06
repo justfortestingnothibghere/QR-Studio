@@ -540,12 +540,32 @@ async def sitemap(request: Request):
     return Response(xml, media_type="application/xml")
 
 
+_ASSET_REF = re.compile(r'(/assets/[A-Za-z0-9_./-]+\.(?:js|css))(?=["\'])')
+
+
+def asset_version() -> str:
+    """Changes whenever any .js/.css file changes, so browsers never run a stale script after a deploy."""
+    import hashlib
+    h = hashlib.sha1()
+    for f in sorted((config.frontend_dir() / "assets").rglob("*")):
+        if f.suffix in (".js", ".css"):
+            st = f.stat()
+            h.update(("%s%d%d" % (f.name, st.st_size, int(st.st_mtime))).encode())
+    return h.hexdigest()[:10]
+
+
+def html_page(p, status=200):
+    ver = asset_version()
+    text = _ASSET_REF.sub(lambda m: m.group(1) + "?v=" + ver, p.read_text(encoding="utf-8"))
+    return HTMLResponse(text, status_code=status, headers={"Cache-Control": "no-cache, must-revalidate"})
+
+
 def page_route(path, fname):
     async def h(request: Request):
         p = config.frontend_dir() / fname
         if not p.exists():
             return HTMLResponse("Frontend not found", status_code=500)
-        return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-cache"})
+        return html_page(p)
     return Route(path, h, methods=["GET", "HEAD"])
 
 
@@ -570,7 +590,7 @@ async def not_found_page(request: Request, exc):
     if request.url.path.startswith("/api/"):
         return JSONResponse({"error": "Not found"}, status_code=404)
     p = config.frontend_dir() / "404.html"
-    return FileResponse(p, media_type="text/html", status_code=404) if p.exists() else HTMLResponse("Not found", status_code=404)
+    return html_page(p, 404) if p.exists() else HTMLResponse("Not found", status_code=404)
 
 
 async def api_error(request: Request, exc: ApiError):
@@ -613,7 +633,9 @@ class Guard:
                     extra[b"strict-transport-security"] = b"max-age=31536000; includeSubDomains"
                 path = scope.get("path", "")
                 if path.startswith("/assets/") and b"cache-control" not in h:
-                    if path.endswith((".js", ".css")):
+                    if path.endswith((".js", ".css")) and b"v=" in scope.get("query_string", b""):
+                        extra[b"cache-control"] = b"public, max-age=31536000, immutable"   # URL changes with every release
+                    elif path.endswith((".js", ".css")):
                         extra[b"cache-control"] = b"no-cache"                          # revalidate (304) so a new deploy shows at once
                     else:
                         extra[b"cache-control"] = b"public, max-age=604800, stale-while-revalidate=86400"
