@@ -163,10 +163,18 @@ def apply_watermark(img: Image.Image, text: str, user_tag: str = "") -> Image.Im
 
 
 # ---------- main render ----------
-def _panel(theme: dict, design: dict, payload: str, scale: float, logo_img=None):
+def _decoy_seed(payload: str, tag: str, bump: int = 0) -> int:
+    import hashlib
+    return int(hashlib.sha256(("%s|%s|%s|%s" % (config.get("security.secret_key"), payload, tag, bump)).encode()).hexdigest()[:15], 16)
+
+
+def _panel(theme: dict, design: dict, payload: str, scale: float, logo_img=None, decoy_tag=None):
     q = theme["qr"]
     pw, ph = max(40, int(q["w"] * scale)), max(40, int(q["h"] * scale))
     matrix = qrdraw.qr_matrix(payload)
+    if decoy_tag is not None:
+        # unpaid preview: scramble data + format bits (42% flips, ECC-H cannot recover). Verified unreadable by tests/decoy_check.py
+        matrix = qrdraw.decoy_matrix(matrix, _decoy_seed(payload, decoy_tag))
     style = dict(design["style"])
     style["letter"] = ((design.get("name") or "Q").strip() or "Q")[0]
     return qrdraw.draw_panel(pw, ph, matrix, style, radius=int(q.get("r", 26) * scale), logo_img=logo_img), matrix
@@ -177,7 +185,7 @@ def render_poster(theme: dict, design: dict, payload: str, scale: float, waterma
     W, H = int(DW * scale), int(DH * scale)
     img = theme_bg(theme, W, H).convert("RGBA")
     q = theme["qr"]
-    panel, _ = _panel(theme, design, payload, scale, logo_img)
+    panel, _ = _panel(theme, design, payload, scale, logo_img, decoy_tag=(user_tag or "guest") if watermark else None)
     x, y = int(q["x"] * scale), int(q["y"] * scale)
     accent = _rgb(theme.get("accent", "#4da3ff"))
     gl = Image.new("RGBA", img.size, (0, 0, 0, 0))

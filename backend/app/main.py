@@ -22,27 +22,12 @@ from . import config, db, payload as pl, pricing, security, uploads
 from .payments import fam, orders
 from .render import engine, qrdraw
 from .security import ApiError, rate_limit, require_user
+from .util import body, ok
+from . import admin
 
 RATE = lambda k, d: int(config.get("limits.rate." + k, d))  # noqa: E731
 SAMPLE = {"kind": "upi", "fields": {"upi_id": "yourname@upi"}, "name": "Arman Khan", "title": "Your Pocket UPI QR",
           "tag": "SCAN · PAY · DONE", "dynamic": False, "style": {"dot": "dot", "ink": "#0b0b10", "logo": "letter", "logo_id": ""}}
-
-
-def ok(data=None, **kw):
-    return JSONResponse({"ok": True, **(data or {}), **kw}, headers={"Cache-Control": "no-store"})
-
-
-async def body(request: Request, limit=200_000) -> dict:
-    raw = await request.body()
-    if len(raw) > limit:
-        raise ApiError(413, "Request too large")
-    try:
-        d = json.loads(raw or b"{}")
-    except ValueError:
-        raise ApiError(400, "Invalid JSON")
-    if not isinstance(d, dict):
-        raise ApiError(400, "Invalid JSON")
-    return d
 
 
 def public_user(u):
@@ -64,7 +49,7 @@ def frozen_design(raw: dict, user):
 async def signup(request: Request):
     ip = security.client_ip(request)
     rate_limit("auth", ip, RATE("auth_per_10min", 12), 600)
-    if not config.get("security.signup_open", True):
+    if not config.get("security.signup_open", True) or admin.meta_get("signups_closed", "0") == "1":
         raise ApiError(403, "Sign ups are closed right now")
     d = await body(request, 5000)
     email, name, pw = str(d.get("email", "")).strip().lower(), str(d.get("name", "")).strip()[:40], str(d.get("password", ""))
@@ -95,6 +80,7 @@ async def login(request: Request):
     u = db.one("SELECT * FROM users WHERE email=?", (email,))
     good = await run_in_threadpool(security.check_password, pw, u["pw_hash"]) if u else (await run_in_threadpool(security.burn_time) or False)
     if not (u and good) or u["banned"]:
+        db.log_event("anon", "login_fail", email[:60], ip, "banned" if (u and good) else "bad credentials")
         raise ApiError(401, "Email or password is wrong")
     resp = ok({"user": public_user(u)})
     security.set_cookie(resp, security.create_session(request, u["id"]))
@@ -400,6 +386,7 @@ async def order_create(request: Request):
         if active_pass and snap["dynamic"]:
             db.run("UPDATE qrs SET dyn_active=1 WHERE id=?", (r["id"],))
     row = db.one("SELECT * FROM orders WHERE id=?", (o["id"],))
+    db.log_event("user:%d" % u["id"], "order_created", o["id"], security.client_ip(request), "%.2f INR %s" % (row["amount_paise"] / 100, kind))
     out = order_public(row)
     out["upi_link"] = orders.upi_link(row) if row["status"] == "pending" else None
     out["payee"] = config.get("payments.upi_id")
@@ -423,18 +410,38 @@ async def order_get(request: Request):
 
 async def order_list(request: Request):
     u = require_user(request, csrf=False)
-    rows = db.many("SELECT * FROM orders WHERE user_id=? ORDER BY created DESC LIMIT 100", (u["id"],))
+    rows = db.many("SELECT * FROM orders WHERE user_id=? AND kind!='test' ORDER BY created DESC LIMIT 100", (u["id"],))
     return ok({"orders": [order_public(o) for o in rows]})
 
 
+REF_RE = re.compile(r"^[A-Za-z0-9]{8,40}$")
+
+
 async def order_verify(request: Request):
+    """Customer confirms payment. Three ways: UTR, Fam Transaction ID, or 'my payment has no UTR' (Fam to Fam). All go through one atomic claim."""
     u = require_user(request)
+    ip = security.client_ip(request)
+    oid = request.path_params["oid"]
     rate_limit("verify", str(u["id"]), RATE("verify_per_min", 8), 60)
+    # hard lock after repeated wrong guesses on one order (a UTR cannot be brute forced)
+    if security.penalty_count("vfail", oid, 1800) >= 10 or security.penalty_count("vfail-u", str(u["id"]), 3600) >= 25:
+        db.log_event("user:%d" % u["id"], "verify_locked", oid, ip, "too many wrong attempts")
+        raise ApiError(429, "Too many wrong attempts. Wait 30 minutes or contact support with your order number.")
     d = await body(request, 2000)
-    utr = re.sub(r"\s", "", str(d.get("utr", "")))
-    if not re.fullmatch(r"\d{12}", utr):
-        raise ApiError(400, "A UTR has 12 digits. Copy it from the Fam email.")
-    res = await run_in_threadpool(orders.claim, request.path_params["oid"], u["id"], utr)
+    try:
+        if d.get("mode") == "amount":
+            res = await run_in_threadpool(orders.claim_by_amount, oid, u["id"], ip)
+        else:
+            ref = re.sub(r"\s", "", str(d.get("utr", "")))
+            if not REF_RE.match(ref):
+                raise ApiError(400, "Enter the 12-digit UTR or the Transaction ID from the Fam email.")
+            res = await run_in_threadpool(orders.claim, oid, u["id"], ref, ip)
+    except ApiError as e:
+        if e.status in (404, 409, 422) and d.get("mode") != "amount":     # only guessable inputs count towards the lock
+            security.penalty_add("vfail", oid)
+            security.penalty_add("vfail-u", str(u["id"]))
+            db.log_event("user:%d" % u["id"], "verify_fail", oid, ip, e.message[:200])
+        raise
     return ok(res)
 
 
@@ -510,74 +517,6 @@ async def download(request: Request):
     return FileResponse(f, media_type=mt, headers={"Content-Disposition": 'attachment; filename="%s-%s.%s"' % (safe, oid, ext), "Cache-Control": "private, no-store"})
 
 
-# ---------------- admin ----------------
-async def admin_stats(request: Request):
-    require_user(request, csrf=False, admin=True)
-    t = time.time()
-    s = {
-        "users": db.one("SELECT COUNT(*) n FROM users")["n"],
-        "qrs": db.one("SELECT COUNT(*) n FROM qrs")["n"],
-        "paid_orders": db.one("SELECT COUNT(*) n FROM orders WHERE status='paid' AND rupees>0")["n"],
-        "revenue": db.one("SELECT COALESCE(SUM(rupees),0) n FROM orders WHERE status='paid'")["n"],
-        "revenue_7d": db.one("SELECT COALESCE(SUM(rupees),0) n FROM orders WHERE status='paid' AND paid_at>?", (t - 7 * 86400,))["n"],
-        "pending": db.one("SELECT COUNT(*) n FROM orders WHERE status='pending' AND expires>?", (t,))["n"],
-        "unclaimed_payments": db.one("SELECT COUNT(*) n FROM payments WHERE claimed_by IS NULL")["n"],
-        "imap": fam.status(), "mode": config.get("payments.mode"),
-    }
-    return ok({"stats": s,
-               "orders": db.many("SELECT o.id,o.status,o.rupees,o.amount_paise,o.created,o.paid_at,o.utr,o.label,u.email FROM orders o JOIN users u ON u.id=o.user_id ORDER BY o.created DESC LIMIT 50"),
-               "payments": db.many("SELECT utr,amount_paise,received_at,payer,source,claimed_by FROM payments ORDER BY received_at DESC LIMIT 50"),
-               "users": db.many("SELECT id,email,name,created,banned,pass_until FROM users ORDER BY created DESC LIMIT 50")})
-
-
-async def admin_add_payment(request: Request):
-    require_user(request, admin=True)
-    d = await body(request, 2000)
-    utr = re.sub(r"\s", "", str(d.get("utr", "")))
-    try:
-        paise = int(round(float(d.get("amount", 0)) * 100))
-    except ValueError:
-        raise ApiError(400, "Amount must be a number")
-    if not re.fullmatch(r"\d{12}", utr) or paise <= 0:
-        raise ApiError(400, "Need a 12-digit UTR and a positive amount")
-    if not fam.store_payment({"utr": utr, "amount_paise": paise, "received_at": time.time(), "payer": "manual"}, "admin"):
-        raise ApiError(409, "This UTR is already recorded")
-    return ok()
-
-
-async def admin_backup(request: Request):
-    """Consistent copy of the database (SQLite online backup), for people who host without a server of their own."""
-    require_user(request, csrf=False, admin=True)
-    import sqlite3
-    import tempfile
-    tmp = Path(tempfile.mkdtemp()) / "qrstudio-backup.db"
-
-    def make():
-        src = db.connect()
-        dst = sqlite3.connect(tmp)
-        try:
-            src.backup(dst)
-        finally:
-            dst.close()
-            src.close()
-    await run_in_threadpool(make)
-    name = "qrstudio-%s.db" % time.strftime("%Y%m%d-%H%M")
-    return FileResponse(tmp, media_type="application/octet-stream", headers={"Content-Disposition": 'attachment; filename="%s"' % name, "Cache-Control": "no-store"})
-
-
-async def admin_ban(request: Request):
-    me_ = require_user(request, admin=True)
-    uid = int(request.path_params["uid"])
-    if uid == me_["id"]:
-        raise ApiError(400, "You cannot ban yourself")
-    d = await body(request, 500)
-    ban = 1 if d.get("banned") else 0
-    db.run("UPDATE users SET banned=? WHERE id=?", (ban, uid))
-    if ban:
-        db.run("DELETE FROM sessions WHERE user_id=?", (uid,))
-    return ok()
-
-
 async def health(request: Request):
     db.one("SELECT 1")
     return JSONResponse({"ok": True, "time": time.time()})
@@ -585,7 +524,20 @@ async def health(request: Request):
 
 # ---------------- pages / static ----------------
 PAGES = {"/": "index.html", "/studio": "studio.html", "/themes": "themes.html", "/pricing": "pricing.html", "/login": "login.html", "/signup": "signup.html",
-         "/dashboard": "dashboard.html", "/theme-maker": "theme-maker.html", "/admin": "admin.html", "/terms": "terms.html", "/privacy": "privacy.html"}
+         "/dashboard": "dashboard.html", "/theme-maker": "theme-maker.html", "/admin": "admin.html", "/terms": "terms.html", "/privacy": "privacy.html",
+         "/faq": "faq.html", "/contact": "contact.html", "/refund": "refund.html", "/receipt": "receipt.html", "/how-it-works": "how-it-works.html"}
+
+
+async def robots(request: Request):
+    base = (config.get("server.public_url") or "").rstrip("/")
+    return Response("User-agent: *\nDisallow: /api/\nDisallow: /admin\nDisallow: /dashboard\nDisallow: /receipt\nDisallow: /r/\nSitemap: %s/sitemap.xml\n" % base, media_type="text/plain")
+
+
+async def sitemap(request: Request):
+    base = (config.get("server.public_url") or "").rstrip("/")
+    urls = ["/", "/themes", "/pricing", "/how-it-works", "/faq", "/contact", "/refund", "/terms", "/privacy", "/signup", "/login"]
+    xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + "".join("<url><loc>%s%s</loc></url>" % (base, u) for u in urls) + "</urlset>"
+    return Response(xml, media_type="application/xml")
 
 
 def page_route(path, fname):
@@ -606,6 +558,11 @@ async def site_config(request: Request):
     for env, key in (("SITE_NAME", "site_name"), ("OWNER", "owner"), ("SUPPORT_EMAIL", "support_email"), ("SUPPORT_TELEGRAM", "support_telegram")):
         if os.environ.get(env):
             data[key] = os.environ[env]
+    try:
+        data["announcement"] = admin.meta_get("announcement")
+        data["announcement_kind"] = admin.meta_get("announcement_kind", "info")
+    except Exception:
+        pass
     return JSONResponse(data, headers={"Cache-Control": "no-cache"})
 
 
@@ -653,7 +610,15 @@ class Guard:
                     b"content-security-policy": b"default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
                 }
                 if config.get("security.cookie_secure"):
-                    extra[b"strict-transport-security"] = b"max-age=31536000"
+                    extra[b"strict-transport-security"] = b"max-age=31536000; includeSubDomains"
+                path = scope.get("path", "")
+                if path.startswith("/assets/") and b"cache-control" not in h:
+                    if path.endswith((".js", ".css")):
+                        extra[b"cache-control"] = b"no-cache"                          # revalidate (304) so a new deploy shows at once
+                    else:
+                        extra[b"cache-control"] = b"public, max-age=604800, stale-while-revalidate=86400"
+                if path.startswith("/api/") and b"cache-control" not in h:
+                    extra[b"cache-control"] = b"no-store"
                 msg["headers"] = list(msg.get("headers") or []) + [(k, v) for k, v in extra.items() if k not in h]
             await send(msg)
         return await self.app(scope, receive, send2)
@@ -692,6 +657,10 @@ async def lifespan(app):
         while True:
             db.run("DELETE FROM sessions WHERE expires<?", (time.time(),))
             db.run("DELETE FROM rl WHERE ts<?", (time.time() - 7200,))
+            try:
+                await run_in_threadpool(admin.auto_snapshot)
+            except Exception as e:
+                print("[qrstudio] snapshot failed:", e, flush=True)
             await asyncio.sleep(3600)
     task = asyncio.create_task(janitor())
     yield
@@ -701,7 +670,7 @@ async def lifespan(app):
 def build_app():
     db.init()
     routes = [
-        Route("/api/health", health), Route("/config.json", site_config),
+        Route("/api/health", health), Route("/config.json", site_config), Route("/robots.txt", robots), Route("/sitemap.xml", sitemap),
         Route("/api/signup", signup, methods=["POST"]), Route("/api/login", login, methods=["POST"]), Route("/api/logout", logout, methods=["POST"]),
         Route("/api/me", me), Route("/api/password", change_password, methods=["POST"]), Route("/api/account/delete", delete_account, methods=["POST"]),
         Route("/api/themes", list_themes), Route("/api/themes/{tid}/thumb", theme_thumb), Route("/api/themes/upload", theme_upload, methods=["POST"]),
@@ -714,7 +683,7 @@ def build_app():
         Route("/api/orders/{oid}", order_get), Route("/api/orders/{oid}/verify", order_verify, methods=["POST"]),
         Route("/api/orders/{oid}/simulate", dev_simulate, methods=["POST"]), Route("/api/orders/{oid}/payqr", order_payqr),
         Route("/api/orders/{oid}/download/{fmt}", download),
-        Route("/api/admin/stats", admin_stats), Route("/api/admin/payments", admin_add_payment, methods=["POST"]), Route("/api/admin/backup", admin_backup), Route("/api/admin/users/{uid:int}/ban", admin_ban, methods=["POST"]),
+        *admin.routes(),
         Route("/r/{slug}", redirect_slug),
     ]
     routes += [page_route(p, f) for p, f in PAGES.items()]
@@ -722,7 +691,8 @@ def build_app():
     if (fe / "assets").exists():
         from starlette.routing import Mount
         routes.append(Mount("/assets", StaticFiles(directory=fe / "assets"), name="assets"))
-    app = Starlette(routes=routes, middleware=[Middleware(Guard)], lifespan=lifespan,
+    from starlette.middleware.gzip import GZipMiddleware
+    app = Starlette(routes=routes, middleware=[Middleware(Guard), Middleware(GZipMiddleware, minimum_size=700, compresslevel=5)], lifespan=lifespan,
                     exception_handlers={404: not_found_page, ApiError: api_error, pl.DesignError: design_error, 500: server_error, 405: not_found_page})
     return app
 

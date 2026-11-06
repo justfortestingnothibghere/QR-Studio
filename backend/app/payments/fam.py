@@ -4,6 +4,7 @@ Layout of the real email (from the owner's screenshot):
   Hey <name>, You have successfully received ₹1.0 from <payer>
   Transaction ID: FMPIB...   Date: 01:17 AM IST, 04 November 2026   Updated Balance: ₹87.64   UTR: 845304841118
 """
+import hashlib
 import html
 import imaplib
 import re
@@ -19,6 +20,7 @@ from .. import config, db
 IST = timezone(timedelta(hours=5, minutes=30))
 AMT_RE = re.compile(r"received\s*(?:₹|rs\.?|inr|\ufffd+|\?)?\s*([\d,]+(?:\.\d{1,2})?)", re.I)
 UTR_RE = re.compile(r"\bUTR\s*[:#\-]?\s*(\d{12})\b", re.I)
+TXN_RE = re.compile(r"\bTransaction\s*(?:ID|Id|No\.?|Number)\s*[:#\-]?\s*([A-Za-z0-9]{8,40})\b", re.I)
 DATE_RE = re.compile(r"Date\s*[:\-]?\s*(\d{1,2}:\d{2}\s*[AP]M)\s*IST\s*,?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})", re.I)
 FROM_RE = re.compile(r"received\s*(?:₹|rs\.?|inr|\ufffd+|\?)?\s*[\d,.]+\s*from\s+(.{1,60}?)\s*(?:Transaction|$)", re.I | re.S)
 
@@ -41,13 +43,18 @@ def _text_of(msg) -> str:
 
 
 def parse_text(text: str):
-    """Returns dict(amount_paise, utr, received_at, payer) or None."""
-    a, u = AMT_RE.search(text), UTR_RE.search(text)
-    if not (a and u):
+    """Returns dict(amount_paise, utr, txn_id, ref, received_at, payer) or None.
+    Fam to Fam (P2P) payments often carry no UTR, only a Transaction ID, or nothing at all. Both are supported:
+    ref = UTR, else Transaction ID, else a fingerprint of the email so it is stored once and can still be auto-matched by amount."""
+    a, u, t = AMT_RE.search(text), UTR_RE.search(text), TXN_RE.search(text)
+    f = FROM_RE.search(text)
+    if not a or not (u or t or f):
         return None
     try:
         paise = int((Decimal(a.group(1).replace(",", "")) * 100).to_integral_value())
     except InvalidOperation:
+        return None
+    if paise <= 0:
         return None
     ts = None
     d = DATE_RE.search(text)
@@ -56,8 +63,13 @@ def parse_text(text: str):
             ts = datetime.strptime(d.group(1).upper().replace(" ", "") + " " + " ".join(d.group(2).split()), "%I:%M%p %d %B %Y").replace(tzinfo=IST).timestamp()
         except ValueError:
             ts = None
-    f = FROM_RE.search(text)
-    return {"amount_paise": paise, "utr": u.group(1), "received_at": ts, "payer": (f.group(1).strip() if f else "")[:60]}
+    utr = u.group(1) if u else ""
+    txn = t.group(1).upper() if t else ""
+    payer = (f.group(1).strip() if f else "")[:60]
+    ref = utr or txn
+    if not ref:
+        ref = "NOREF" + hashlib.sha1(("%s|%s|%s|%s" % (paise, payer, d.group(0) if d else "", text[:300])).encode()).hexdigest()[:14].upper()
+    return {"amount_paise": paise, "utr": ref, "real_utr": utr, "txn_id": txn, "received_at": ts, "payer": payer}
 
 
 def _in(dom: str, allowed: str) -> bool:
@@ -107,8 +119,15 @@ def parse_message(raw: bytes, cfg: dict):
 
 def store_payment(info: dict, source: str) -> bool:
     """INSERT OR IGNORE keeps a replayed email from creating a second payment."""
-    _, n = db.run("INSERT OR IGNORE INTO payments(utr,amount_paise,received_at,payer,source,claimed_by,created) VALUES(?,?,?,?,?,NULL,?)",
-                  (info["utr"], info["amount_paise"], info["received_at"], info.get("payer", ""), source, time.time()))
+    _, n = db.run("INSERT OR IGNORE INTO payments(utr,amount_paise,received_at,payer,source,claimed_by,created,txn_id) VALUES(?,?,?,?,?,NULL,?,?)",
+                  (info["utr"], info["amount_paise"], info["received_at"], info.get("payer", ""), source, time.time(), info.get("txn_id", "")))
+    if n == 1:
+        db.log_event("system", "payment_in", info["utr"], "", "%s paise via %s%s" % (info["amount_paise"], source, "" if info.get("real_utr") else " (no UTR)"))
+        try:
+            from . import orders
+            orders.auto_match(info["utr"])          # the order is unlocked without the customer typing anything
+        except Exception as e:
+            print("[qrstudio] auto-match error:", e, flush=True)
     return n == 1
 
 
@@ -116,7 +135,23 @@ def store_payment(info: dict, source: str) -> bool:
 _status = {"enabled": False, "last_ok": 0, "last_error": "", "seen": 0, "stored": 0, "rejected": 0}
 
 
+def _save_status():
+    try:
+        import json as _j
+        db.run("INSERT INTO meta(k,v) VALUES('imap_status',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (_j.dumps(_status),))
+    except Exception:
+        pass
+
+
 def status():
+    try:
+        import json as _j
+        r = db.one("SELECT v FROM meta WHERE k='imap_status'")
+        if r:
+            d = _j.loads(r["v"])
+            return {**dict(_status), **d} if d.get("last_ok", 0) >= _status.get("last_ok", 0) else dict(_status)
+    except Exception:
+        pass
     return dict(_status)
 
 
@@ -143,6 +178,7 @@ def poll_once() -> int:
                 continue
             _status["seen"] += 1
             info, why = parse_message(msgdata[0][1], cfg)
+            last_uid = max(last_uid, int(uid))            # never re-read an email we already processed
             if info is None:
                 if why != "no payment found in email":
                     _status["rejected"] += 1
@@ -150,9 +186,9 @@ def poll_once() -> int:
             if store_payment(info, "email"):
                 stored += 1
                 _status["stored"] += 1
-            last_uid = max(last_uid, int(uid))
         db.run("INSERT INTO meta(k,v) VALUES('imap_last_uid',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (str(last_uid),))
         _status.update(last_ok=time.time(), last_error="")
+        _save_status()
     finally:
         try:
             M.logout()
@@ -169,6 +205,7 @@ def _loop():
             poll_once()
         except Exception as e:  # keep polling through network blips
             _status["last_error"] = str(e)[:200]
+            _save_status()
         time.sleep(max(5, int(cfg.get("poll_seconds", 20))))
 
 

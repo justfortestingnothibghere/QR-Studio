@@ -65,9 +65,10 @@
     if (!orders.length) { body.innerHTML = '<tr><td colspan="6" class="muted">No orders yet.</td></tr>'; return; }
     orders.forEach((o) => {
       const tr = document.createElement("tr");
-      const chip = { paid: "ok", pending: "warn", expired: "bad" }[o.status] || "";
+      const chip = { paid: "ok", pending: "warn", expired: "bad", unpaid: "bad" }[o.status] || "";
       let act = "";
       if (o.status === "paid" && o.kind === "export") act = '<a class="btn ghost sm" href="/api/orders/' + o.id + '/download/png">PNG</a> <a class="btn ghost sm" href="/api/orders/' + o.id + '/download/pdf">PDF</a>';
+      if (o.status === "paid" && o.amount_paise) act += ' <a class="btn ghost sm" href="/receipt?id=' + o.id + '">Receipt</a>';
       if (o.status === "pending" && o.kind === "export") act = '<a class="btn sm" href="/studio?qr=' + o.qr_id + "&order=" + o.id + '">Continue</a>';
       tr.innerHTML = '<td class="mono">' + esc(o.id) + "</td><td>" + esc(o.label || (o.kind === "pass" ? "Pass" : "")) + "</td><td>" + (o.amount_paise ? esc(rs(o.amount_paise)) : "Pass") + '</td><td><span class="chip ' + chip + '">' + esc(o.status) + "</span></td><td>" + esc(date(o.created)) + "</td><td>" + act + "</td>";
       body.appendChild(tr);

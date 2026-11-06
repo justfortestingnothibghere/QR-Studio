@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Studio | QR Studio</title>
 <meta name="description" content="Design your QR poster, preview it free and unlock the clean download.">
-<meta name="theme-color" content="#07070d">
+<meta name="theme-color" content="#05060d" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="#e9edf8" media="(prefers-color-scheme: light)">
 <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/css/app.css">
+<script src="/assets/js/theme.js"></script>
 </head>
 <body>
 <header id="nav"></header>
@@ -16,6 +17,7 @@
 <div class="studio">
   <section class="stage" aria-label="Poster preview">
     <div class="frame" id="frame"><img id="pv" alt="Poster preview with your QR code" draggable="false"><div class="shield" id="shield"></div><div class="busy hide" id="busy">Rendering…</div></div>
+    <p class="small muted pad" id="pvnote">Preview only: the QR here is scrambled on purpose so it cannot be scanned. Your paid download has the real, working code.</p>
     <div class="chips"><span class="chip warn" id="chipMode">Preview · watermarked</span><span class="chip" id="chipScan">Checking scan…</span></div>
   </section>
   <div class="stack">

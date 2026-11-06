@@ -139,6 +139,48 @@ def contrast_ok(ink: str, minimum: float = 4.5) -> bool:
     return (1.05) / (_lum(ink) + 0.05) >= minimum
 
 
+def reads_anything(panel: Image.Image) -> bool:
+    """True if a scanner can decode ANY text from the panel (used to prove the decoy is dead)."""
+    if cv2 is None:
+        return False
+    base = panel.convert("RGB")
+    bg = Image.new("RGB", (base.width + 120, base.height + 120), (255, 255, 255))
+    bg.paste(base, (60, 60))
+    bgr = cv2.cvtColor(np.array(bg), cv2.COLOR_RGB2BGR)
+    try:
+        if hasattr(cv2, "wechat_qrcode_WeChatQRCode"):
+            res, _ = cv2.wechat_qrcode_WeChatQRCode().detectAndDecode(bgr)
+            if res and any(res):
+                return True
+        text, _, _ = cv2.QRCodeDetector().detectAndDecode(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY))
+        return bool(text)
+    except Exception:
+        return False
+
+
+def decoy_matrix(matrix, seed: int):
+    """Preview-only QR: same size and look as the real one, but the data and format bits are scrambled so no phone can read it.
+    Finder, timing and alignment structure stay, so it still looks like a normal QR in a screenshot."""
+    import random
+    rnd = random.Random(seed)
+    n = len(matrix)
+    out = [row[:] for row in matrix]
+    fmt = set()
+    for i in range(9):                                   # format information, both copies
+        for (x, y) in ((i, 8), (8, i), (n - 1 - i, 8), (8, n - 1 - i)):
+            if 0 <= x < n and 0 <= y < n and x != 6 and y != 6:
+                fmt.add((x, y))
+    for y in range(n):
+        for x in range(n):
+            if _in_finder(x, y, n) or x == 6 or y == 6:
+                continue
+            if (x, y) in fmt:
+                out[y][x] = not out[y][x]                # always flip the format bits
+            elif rnd.random() < 0.42:
+                out[y][x] = not out[y][x]
+    return out
+
+
 def decode_ok(panel: Image.Image, expected: str, ink: str = "#000000") -> bool:
     """Scan check: decode the clean panel. Uses OpenCV's WeChat decoder (ZXing based, close to what phone scanners do)
     and falls back to the basic OpenCV detector if the contrib module is missing."""

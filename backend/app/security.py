@@ -72,6 +72,16 @@ def rate_limit(bucket: str, key: str, limit: int, window: int):
         c.execute("INSERT INTO rl(k,ts) VALUES(?,?)", (k, now))
 
 
+def penalty_count(bucket: str, key: str, window: int) -> int:
+    k = bucket + "|" + key
+    db.run("DELETE FROM rl WHERE k=? AND ts<?", (k, time.time() - window))
+    return db.one("SELECT COUNT(*) n FROM rl WHERE k=?", (k,))["n"]
+
+
+def penalty_add(bucket: str, key: str):
+    db.run("INSERT INTO rl(k,ts) VALUES(?,?)", (bucket + "|" + key, time.time()))
+
+
 # ---------- sessions ----------
 def create_session(request: Request, user_id: int) -> str:
     token = secrets.token_urlsafe(32)

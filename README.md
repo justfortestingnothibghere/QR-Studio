@@ -51,3 +51,11 @@ page as a deterrent only. A user can always screenshot a preview, but the screen
 
 ## Railway / GitHub
 See DEPLOY.md. Settings can come from environment variables (see railway.variables.example), so no secrets live in the repo.
+
+## Admin, backup and payments (v2)
+- `/admin` tabs: Overview, Orders (mark paid / unpaid), Payments, Users, QRs, Payment test, Backup, Activity, Settings.
+- Backup: Admin -> Backup downloads one zip (database + logos + custom themes). The same page restores it (needs the admin password and the word RESTORE). A daily database copy is also kept in the data folder.
+- Payment test: any amount, same matching path as customers. Test orders never count as revenue.
+- Payments unlock automatically when the Fam email arrives and exactly one open order has that amount. Fallbacks: UTR, Fam Transaction ID, or "My payment has no UTR" (Fam to Fam).
+- Unpaid previews contain a scrambled, unscannable QR. `python3 backend/tests/decoy_check.py` proves it.
+- Tests (server on localhost in mock mode, fresh data, `ADMIN_EMAILS=adm@x.com`): `tests/e2e.py`, `tests/payments_extra.py`, `tests/decoy_check.py`.

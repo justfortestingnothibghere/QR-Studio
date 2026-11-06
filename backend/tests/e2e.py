@@ -130,11 +130,13 @@ def main():
     # ---- payment: wrong amount, replay, right amount
     r = a.req("POST", "/api/orders/%s/simulate" % o1["id"], {})
     utr1 = r.json()["utr"]
+    r = a.req("GET", "/api/orders/%s" % o1["id"])
+    check("payment email auto-unlocks the order (no UTR typing needed)", r.json()["order"]["status"] == "paid", r.text[:200])
     o2 = a.req("POST", "/api/orders", {"kind": "export", "qr_id": qid, "print": False}).json()["order"]
     r = a.req("POST", "/api/orders/%s/verify" % o2["id"], {"utr": utr1})
-    check("UTR with wrong amount rejected (422)", r.status_code == 422 and "needs exactly" in r.json()["error"], r.text[:200])
+    check("a payment already used by another order is refused (409)", r.status_code == 409, r.text[:200])
     r = a.req("POST", "/api/orders/%s/verify" % o1["id"], {"utr": utr1})
-    check("correct UTR unlocks order", r.status_code == 200 and r.json()["status"] == "paid", r.text[:200])
+    check("verifying an already paid order is harmless", r.status_code == 200 and r.json()["status"] == "paid", r.text[:200])
     r = a.req("POST", "/api/orders", {"kind": "export", "qr_id": qid, "print": True})
     o3 = r.json()["order"]
     r = a.req("POST", "/api/orders/%s/verify" % o3["id"], {"utr": utr1})
