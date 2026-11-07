@@ -6,7 +6,7 @@
 
   const INKS = ["#0b0b10", "#10206b", "#7c0d1f", "#0b4d2e", "#4a1d96"];
   const S = {
-    kind: "upi", f: { upi_id: "yourname@upi", amount: "", note: "", url: "https://teamdev.sbs", text: "Hello from QR Studio", ssid: "HomeNet", wpass: "", wenc: "WPA", phone: "", email: "" },
+    kind: "upi", f: { upi_id: "yourname@upi", amount: "", note: "", url: "https://teamdev.sbs", text: "Hello from QR Studio", ssid: "HomeNet", wpass: "", wenc: "WPA", phone: "", email: "", wa_phone: "919876543210", wa_msg: "", ig: "yourname", yt: "@yourchannel", mq: "Your shop, your city", em_to: "you@example.com", em_sub: "", em_msg: "", sms_phone: "919876543210", sms_msg: "", ph_phone: "919876543210", tg: "yourname" },
     name: QS.user ? QS.user.name : "Your Name", title: "Your Pocket UPI QR", tag: "SCAN · PAY · DONE",
     dot: "dot", ink: INKS[0], logo: "letter", logo_id: "", dynamic: false, theme_id: qs.get("theme") || "crimson-surge", print: false, qr_id: null, order: null, themes: [], logos: [],
   };
@@ -18,6 +18,14 @@
     if (k === "url") return { url: f.url };
     if (k === "text") return { text: f.text };
     if (k === "wifi") return { ssid: f.ssid, password: f.wpass, enc: f.wenc };
+    if (k === "whatsapp") return { phone: f.wa_phone, message: f.wa_msg };
+    if (k === "instagram") return { handle: f.ig };
+    if (k === "youtube") return { url: f.yt };
+    if (k === "maps") return { query: f.mq };
+    if (k === "email") return { to: f.em_to, subject: f.em_sub, message: f.em_msg };
+    if (k === "sms") return { phone: f.sms_phone, message: f.sms_msg };
+    if (k === "phone") return { phone: f.ph_phone };
+    if (k === "telegram") return { handle: f.tg };
     return { phone: f.phone, email: f.email };
   }
   const design = () => ({ kind: S.kind, fields: fieldsFor(S.kind), name: S.name, title: S.title, tag: S.tag, dynamic: S.kind === "url" && S.dynamic, style: { dot: S.dot, ink: S.ink, logo: S.logo, logo_id: S.logo_id } });
@@ -36,12 +44,17 @@
     paint();
     return paint;
   }
+  const TITLES = { upi: "Your Pocket UPI QR", url: "Scan to open", text: "Scan to read", wifi: "Scan to join Wi-Fi", contact: "Scan to save contact", whatsapp: "Chat on WhatsApp", instagram: "Follow on Instagram", youtube: "Watch on YouTube", maps: "Find us on Maps", email: "Scan to email us", sms: "Scan to text us", phone: "Scan to call", telegram: "Chat on Telegram" };
+  S.autoTitle = S.title;
+  if (KIND_PRESET()) S.kind = KIND_PRESET();
+  function KIND_PRESET() { const t = qs.get("type"); return t && TITLES[t] ? t : ""; }
   const paintKind = seg("kind", "kind", syncKind);
   seg("dot", "dot");
   const paintLogo = seg("logo", "logo", syncLogo);
 
   function syncKind() {
     $$("[data-k]").forEach((el) => el.classList.toggle("hide", el.dataset.k !== S.kind));
+    if (S.title === S.autoTitle) { S.title = TITLES[S.kind] || S.title; S.autoTitle = S.title; const t = $("#title"); if (t) t.value = S.title; }
     $("#dynRow").classList.toggle("hide", S.kind !== "url");
     $("#title").parentElement.classList.toggle("hide", false);
     if (S.kind !== "url") S.dynamic = false;
@@ -162,6 +175,17 @@
     } catch (e) { say("bad", e.message); }
   };
 
+  if (QS.user && QS.user.credits > 0) { $("#creditRow").classList.remove("hide"); $("#creditN").textContent = QS.user.credits; }
+  $("#creditBtn").onclick = async () => {
+    try {
+      const id = await save(); if (!id) return;
+      const d = await api("/api/orders", { json: { kind: "export", qr_id: id, print: S.print, use_credit: true } });
+      S.order = d.order; await QS.load();
+      QSPay.mount($("#payArea"), d.order, {});
+      $("#creditRow").classList.add("hide");
+    } catch (e) { say("bad", e.message); }
+  };
+
   // ---------- load existing ----------
   async function openSaved(id) {
     const d = await api("/api/qrs");
@@ -172,6 +196,15 @@
     S.dynamic = de.dynamic; S.theme_id = q.theme_id;
     const f = de.fields;
     Object.assign(S.f, { upi_id: f.upi_id || S.f.upi_id, amount: f.amount || "", note: f.note || "", url: f.url || S.f.url, text: f.text || S.f.text, ssid: f.ssid || S.f.ssid, wpass: f.password || "", wenc: f.enc || "WPA", phone: f.phone || "", email: f.email || "" });
+    if (de.kind === "whatsapp") Object.assign(S.f, { wa_phone: f.phone || "", wa_msg: f.message || "" });
+    if (de.kind === "instagram") S.f.ig = f.handle || "";
+    if (de.kind === "youtube") S.f.yt = f.url || "";
+    if (de.kind === "maps") S.f.mq = f.query || "";
+    if (de.kind === "email") Object.assign(S.f, { em_to: f.to || "", em_sub: f.subject || "", em_msg: f.message || "" });
+    if (de.kind === "sms") Object.assign(S.f, { sms_phone: f.phone || "", sms_msg: f.message || "" });
+    if (de.kind === "phone") S.f.ph_phone = f.phone || "";
+    if (de.kind === "telegram") S.f.tg = f.handle || "";
+    S.autoTitle = null;
     Object.entries(bindIds).forEach(([k, i]) => { $("#" + i).value = S.f[k]; });
     ["name", "title", "tag"].forEach((k) => { $("#" + k).value = S[k]; });
     $("#dynamic").checked = S.dynamic;

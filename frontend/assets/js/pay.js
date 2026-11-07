@@ -20,7 +20,8 @@
       '<ol class="steps4" id="st"><li class="now">Pay the exact amount</li><li>Payment email arrives</li><li>Matched automatically</li><li>Download unlocks</li></ol>' +
       '<div class="paybox"><img id="pq" alt="UPI QR to pay this order" width="170" height="170">' +
       '<div><div class="lab">Pay exactly</div><div class="amount">' + esc(QS.rs(order.amount_paise)) + '</div>' +
-      '<p class="small muted pad">to <span class="mono">' + esc(order.payee || "") + '</span>. The paise identify your order, so do not round the amount.</p>' +
+      '<div class="lab pad">Or pay manually to this UPI ID</div><div class="upibox"><span class="mono" id="upiid">' + esc(order.payee || "") + '</span><button class="btn ghost sm" id="cpu" type="button">Copy UPI ID</button></div>' +
+      '<p class="small muted pad">Type the exact amount <b>' + esc(QS.rs(order.amount_paise)) + '</b> including paise. The paise identify your order, so do not round it.</p>' +
       '<div class="actions pad"><a class="btn blue sm" href="' + esc(order.upi_link || "#") + '">Open UPI app</a><button class="btn ghost sm" id="cp" type="button">Copy amount</button>' +
       (QS.cfg.mode === "mock" ? '<button class="btn ghost sm" id="sim" type="button">Simulate payment (demo)</button>' : "") + '</div>' +
       '<p class="small muted pad">Order ' + esc(order.id) + ' · pay before ' + esc(exp) + '</p></div></div>' +
@@ -61,6 +62,9 @@
     box.querySelector("#cp").onclick = async () => {
       const t = (order.amount_paise / 100).toFixed(2);
       try { await navigator.clipboard.writeText(t); toast("Amount copied: " + t, "ok"); } catch (e) { toast("Amount: " + t); }
+    };
+    box.querySelector("#cpu").onclick = async () => {
+      try { await navigator.clipboard.writeText(order.payee || ""); toast("UPI ID copied", "ok"); } catch (e) { toast("UPI ID: " + (order.payee || "")); }
     };
     const sim = box.querySelector("#sim");
     if (sim) sim.onclick = async () => {

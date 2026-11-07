@@ -81,6 +81,16 @@ def _apply_env():
         _put("payments.imap.allowed_senders", _csv(e["FAM_SENDER_DOMAINS"]))
     if e.get("REQUIRE_DKIM"):
         _put("payments.imap.require_dkim", _truthy(e["REQUIRE_DKIM"]))
+    if e.get("SITE_URL"):
+        _put("server.site_url", e["SITE_URL"].strip().rstrip("/"))
+    if e.get("TELEGRAM_BOT_TOKEN"):
+        _put("notify.telegram_token", e["TELEGRAM_BOT_TOKEN"].strip())
+    if e.get("TELEGRAM_CHAT_ID"):
+        _put("notify.telegram_chat_id", e["TELEGRAM_CHAT_ID"].strip())
+    if e.get("GOOGLE_SITE_VERIFICATION"):
+        _put("seo.google_verification", e["GOOGLE_SITE_VERIFICATION"].strip())
+    if e.get("BING_SITE_VERIFICATION"):
+        _put("seo.bing_verification", e["BING_SITE_VERIFICATION"].strip())
     if e.get("ADMIN_EMAILS"):
         _put("admin.emails", _csv(e["ADMIN_EMAILS"]))
     if e.get("SIGNUP_OPEN"):
@@ -158,6 +168,17 @@ def data_dir() -> Path:
     p = p if p.is_absolute() else BASE / p
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def site_url() -> str:
+    """Public address used in canonical links, sitemap and share cards. SITE_URL, else PUBLIC_URL when it is a real domain, else qr.teamdev.sbs."""
+    explicit = (get("server.site_url") or "").rstrip("/")
+    if explicit:
+        return explicit
+    pub = (get("server.public_url") or "").rstrip("/")
+    if pub.startswith("https://") and "railway.app" not in pub and "localhost" not in pub:
+        return pub
+    return "https://qr.teamdev.sbs"
 
 
 def frontend_dir() -> Path:

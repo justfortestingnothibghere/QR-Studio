@@ -230,6 +230,22 @@
     pager($("#ap"), d, (pg) => { actState.page = pg; loadAct(); });
   });
 
+  // ------------------------------------------------------------------ growth + reviews
+  async function growth() {
+    const d = await api("/api/admin/growth");
+    panel.innerHTML = '<div class="card"><h3>Page views, last 14 days (' + d.views + ' total)</h3><div id="gv" class="pad"></div></div><div class="grid2 pad">' +
+      '<div><h3>Top pages</h3>' + table(["Page", "Views"], d.pages.map((p) => '<tr><td class="mono">' + esc(p.path) + "</td><td>" + p.n + "</td></tr>")) + "</div>" +
+      '<div><h3>Where visitors come from</h3>' + table(["Source", "Views"], d.sources.map((p) => "<tr><td>" + esc(p.src) + "</td><td>" + p.n + "</td></tr>")) + "</div></div>" +
+      '<div class="grid2 pad"><div><h3>Signups by source</h3>' + table(["Source", "Users"], d.signups.map((p) => "<tr><td>" + esc(p.src) + "</td><td>" + p.n + "</td></tr>")) + "</div>" +
+      '<div><h3>Top inviters</h3>' + table(["Inviter", "Joined", "Paid", "Credits used"], d.referrers.map((r) => "<tr><td>" + esc(r.name) + '<div class="small muted">' + esc(r.email) + "</div></td><td>" + r.joined + "</td><td>" + (r.paid || 0) + "</td><td>" + r.used + "</td></tr>"), "No invites yet.") + "</div></div>";
+    bars($("#gv"), d.series.map((s) => ({ day: s.label, v: s.v })), "", (v) => v);
+  }
+  async function reviews() {
+    const d = await api("/api/admin/reviews");
+    panel.innerHTML = table(["Customer", "Stars", "Review", "Status", ""], d.reviews.map((r) => "<tr><td>" + esc(r.name) + "</td><td>" + "★".repeat(r.stars) + "</td><td>" + esc(r.text) + '</td><td><span class="chip ' + (r.status === "approved" ? "ok" : r.status === "pending" ? "warn" : "bad") + '">' + esc(r.status) + '</span></td><td><button class="btn sm" data-r="' + r.id + '" data-s="approved">Approve</button> <button class="btn ghost sm" data-r="' + r.id + '" data-s="rejected">Reject</button></td></tr>'), "No reviews yet. Customers can review from their dashboard after a paid download.");
+    $$("[data-r]", panel).forEach((b) => (b.onclick = guard(async () => { await api("/api/admin/reviews/" + b.dataset.r, { json: { status: b.dataset.s } }); reviews(); })));
+  }
+
   // ------------------------------------------------------------------ settings
   async function settings() {
     const [s, sy] = await Promise.all([api("/api/admin/settings"), api("/api/admin/system")]);
@@ -237,15 +253,16 @@
     panel.innerHTML = '<div class="grid2"><div class="card"><h3>Site announcement</h3><p class="muted">Shows as a banner on every page. Leave empty to hide it.</p><form id="sForm" class="stack pad" novalidate>' +
       '<div><label for="sAnn">Message (max 200 characters)</label><input id="sAnn" type="text" maxlength="200"></div><div><label for="sKind">Style</label><select id="sKind"><option value="info">Info</option><option value="warn">Warning</option></select></div>' +
       '<label class="check"><input id="sSign" type="checkbox"><span>Allow new sign ups<small>Turn off to pause registrations.</small></span></label><div><button class="btn" type="submit">Save</button></div></form><p class="msg" id="sMsg"></p></div>' +
-      '<div class="card"><h3>System</h3><dl class="kv"><dt>Site</dt><dd>' + esc(x.public_url) + "</dd><dt>Payments</dt><dd>" + esc(x.mode) + "</dd><dt>UPI ID</dt><dd>" + esc(x.upi_id || "-") + " (" + esc(x.payee || "") + ")</dd><dt>Gmail</dt><dd>" + esc(x.gmail_user || "-") + (x.gmail_enabled ? " (reading)" : " (off)") + "</dd><dt>Order timeout</dt><dd>" + esc(x.order_expiry_minutes) + " min</dd><dt>Admins</dt><dd>" + esc((x.admin_emails || []).join(", ") || "-") + "</dd><dt>Workers</dt><dd>" + esc(x.workers) + "</dd><dt>Uptime</dt><dd>" + Math.round(x.uptime / 3600 * 10) / 10 + " h</dd><dt>Python</dt><dd>" + esc(x.python) + "</dd><dt>Data folder</dt><dd class=\"mono\">" + esc(x.data_dir) + (x.volume ? "" : " (no Volume)") + "</dd><dt>Disk use</dt><dd>db " + mb(x.db_bytes) + ", logos " + mb(x.logos_bytes) + ", themes " + mb(x.themes_bytes) + ", exports " + mb(x.exports_bytes) + ", cache " + mb(x.cache_bytes) + "</dd></dl>" +
+      '<div class="card"><h3>System</h3><dl class="kv"><dt>Site</dt><dd>' + esc(x.public_url) + "</dd><dt>Payments</dt><dd>" + esc(x.mode) + "</dd><dt>UPI ID</dt><dd>" + esc(x.upi_id || "-") + " (" + esc(x.payee || "") + ")</dd><dt>Gmail</dt><dd>" + esc(x.gmail_user || "-") + (x.gmail_enabled ? " (reading)" : " (off)") + "</dd><dt>Order timeout</dt><dd>" + esc(x.order_expiry_minutes) + " min</dd><dt>Admins</dt><dd>" + esc((x.admin_emails || []).join(", ") || "-") + "</dd><dt>Workers</dt><dd>" + esc(x.workers) + "</dd><dt>Uptime</dt><dd>" + Math.round(x.uptime / 3600 * 10) / 10 + " h</dd><dt>Telegram alerts</dt><dd>" + (s.telegram ? 'on <button class="btn ghost sm" id="tgTest" type="button">Send test</button>' : "off (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)") + "</dd><dt>Python</dt><dd>" + esc(x.python) + "</dd><dt>Data folder</dt><dd class=\"mono\">" + esc(x.data_dir) + (x.volume ? "" : " (no Volume)") + "</dd><dt>Disk use</dt><dd>db " + mb(x.db_bytes) + ", logos " + mb(x.logos_bytes) + ", themes " + mb(x.themes_bytes) + ", exports " + mb(x.exports_bytes) + ", cache " + mb(x.cache_bytes) + "</dd></dl>" +
       '<p class="pad"><button class="btn ghost sm" id="clr" type="button">Clear export + thumbnail cache</button></p><p class="small muted">Prices and the UPI ID are changed in Railway Variables (for example QS__pricing__base=39). That keeps secrets and money settings out of the website.</p></div></div>';
     $("#sAnn").value = s.announcement; $("#sKind").value = s.announcement_kind; $("#sSign").checked = s.signups_open;
     $("#sForm").addEventListener("submit", async (e) => { e.preventDefault(); const m = $("#sMsg"); try { await api("/api/admin/settings", { json: { announcement: $("#sAnn").value, announcement_kind: $("#sKind").value, signups_open: $("#sSign").checked } }); m.className = "msg ok"; m.textContent = "Saved."; } catch (err) { m.className = "msg bad"; m.textContent = err.message; } });
+    if ($("#tgTest")) $("#tgTest").onclick = guard(async () => { await api("/api/admin/notify-test", { json: {} }); toast("Test alert sent to Telegram", "ok"); });
     $("#clr").onclick = guard(async () => { await api("/api/admin/system/clear-cache", { json: {} }); toast("Cache cleared. Files rebuild when needed.", "ok"); settings(); });
   }
 
   // ------------------------------------------------------------------ tabs
-  const views = { overview, orders, payments, users, qrs, test, backup, activity, settings };
+  const views = { overview, orders, payments, users, qrs, growth, reviews, test, backup, activity, settings };
   function show(name) {
     if (!views[name]) name = "overview";
     $$("#tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.t === name)));

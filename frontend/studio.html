@@ -30,7 +30,7 @@
 
       <div data-pane="content" class="stack">
         <div><div class="lab">What should the QR open?</div>
-          <div class="seg" id="kind"><button data-v="upi">UPI payment</button><button data-v="url">Link</button><button data-v="text">Text</button><button data-v="wifi">Wi-Fi</button><button data-v="contact">Contact</button></div></div>
+          <div class="seg" id="kind"><button data-v="upi">UPI payment</button><button data-v="url">Link</button><button data-v="text">Text</button><button data-v="wifi">Wi-Fi</button><button data-v="contact">Contact</button><button data-v="whatsapp">WhatsApp</button><button data-v="instagram">Instagram</button><button data-v="youtube">YouTube</button><button data-v="maps">Maps</button><button data-v="email">Email</button><button data-v="sms">SMS</button><button data-v="phone">Call</button><button data-v="telegram">Telegram</button></div></div>
         <div class="grid2">
           <div class="field" data-k="upi"><label for="upi_id">UPI ID</label><input id="upi_id" type="text" autocomplete="off" spellcheck="false" placeholder="name@bank"></div>
           <div class="field" data-k="upi"><label for="amount">Amount (optional)</label><input id="amount" type="number" min="0" step="0.01" placeholder="Any amount"></div>
@@ -42,6 +42,18 @@
           <div class="field" data-k="wifi"><label for="wenc">Security</label><select id="wenc"><option value="WPA">WPA / WPA2</option><option value="WEP">WEP</option><option value="nopass">None</option></select></div>
           <div class="field" data-k="contact"><label for="phone">Phone</label><input id="phone" type="tel" maxlength="20"></div>
           <div class="field" data-k="contact"><label for="email">Email</label><input id="email" type="email" maxlength="80"></div>
+          <div class="field" data-k="whatsapp"><label for="wa_phone">WhatsApp number (with country code)</label><input id="wa_phone" type="tel" maxlength="20" placeholder="919876543210"></div>
+          <div class="field" data-k="whatsapp"><label for="wa_msg">Ready message (optional)</label><input id="wa_msg" type="text" maxlength="200" placeholder="Hi, I want to order"></div>
+          <div class="field wide" data-k="instagram"><label for="ig">Instagram username</label><input id="ig" type="text" maxlength="31" placeholder="username" autocapitalize="none" spellcheck="false"></div>
+          <div class="field wide" data-k="youtube"><label for="yt">YouTube link or @handle</label><input id="yt" type="text" maxlength="220" placeholder="@yourchannel or https://youtube.com/..." spellcheck="false"></div>
+          <div class="field wide" data-k="maps"><label for="mq">Place or address</label><input id="mq" type="text" maxlength="200" placeholder="Shop name, area, city"></div>
+          <div class="field" data-k="email"><label for="em_to">Email to</label><input id="em_to" type="email" maxlength="100"></div>
+          <div class="field" data-k="email"><label for="em_sub">Subject (optional)</label><input id="em_sub" type="text" maxlength="100"></div>
+          <div class="field wide" data-k="email"><label for="em_msg">Message (optional)</label><input id="em_msg" type="text" maxlength="300"></div>
+          <div class="field" data-k="sms"><label for="sms_phone">Phone number</label><input id="sms_phone" type="tel" maxlength="20" placeholder="919876543210"></div>
+          <div class="field" data-k="sms"><label for="sms_msg">Message (optional)</label><input id="sms_msg" type="text" maxlength="160"></div>
+          <div class="field wide" data-k="phone"><label for="ph_phone">Phone number to call</label><input id="ph_phone" type="tel" maxlength="20" placeholder="919876543210"></div>
+          <div class="field wide" data-k="telegram"><label for="tg">Telegram username</label><input id="tg" type="text" maxlength="33" placeholder="username" autocapitalize="none" spellcheck="false"></div>
         </div>
         <label class="check hide" id="dynRow"><input id="dynamic" type="checkbox"><span>Dynamic link with scan counter<small>The QR points to a short link we host, so you can change the destination later. Included in the price.</small></span></label>
         <p class="msg bad" id="err" role="alert"></p>
@@ -64,6 +76,8 @@
         <div><h3>Price</h3><ul class="price" id="priceList"></ul><div class="total"><span>Total</span><b id="priceTotal">₹0</b></div>
           <label class="check pad"><input id="printPack" type="checkbox"><span>Print pack (+₹<span id="printPrice">10</span>)<small>Vector SVG and transparent PNG of the QR alone, for standees and stickers.</small></span></label></div>
         <div class="actions"><button class="btn ghost" id="saveBtn" type="button">Save to my QRs</button><button class="btn" id="unlockBtn" type="button">Unlock clean download</button></div>
+        <div class="card hide" id="creditRow"><b>🎁 You have <span id="creditN">0</span> free download credit</b><p class="small muted">Earned from invites. Works on designs up to ₹<span id="creditMax">49</span>.</p><button class="btn blue sm" id="creditBtn" type="button">Use my free credit</button></div>
+        <p class="small muted"><a href="/dashboard#invite">Invite 3 friends → earn a free download</a></p>
         <p class="msg" id="saveMsg" role="status"></p>
         <div id="payArea" class="hide"></div>
       </div>

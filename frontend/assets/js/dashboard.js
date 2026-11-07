@@ -3,7 +3,7 @@
   if (!QS.requireLogin()) return;
   const { $, $$, api, esc, rs, date, toast } = QS;
 
-  const KIND = { upi: "UPI", url: "Link", text: "Text", wifi: "Wi-Fi", contact: "Contact" };
+  const KIND = { upi: "UPI", url: "Link", text: "Text", wifi: "Wi-Fi", contact: "Contact", whatsapp: "WhatsApp", instagram: "Instagram", youtube: "YouTube", maps: "Maps", email: "Email", sms: "SMS", phone: "Call", telegram: "Telegram" };
   let qrs = [], orders = [], themes = [];
 
   function tab(name) {
@@ -46,13 +46,21 @@
         '</div><p class="small muted">Updated ' + esc(date(q.updated)) + "</p>" +
         '<div class="row"><a class="btn sm" href="/studio?qr=' + q.id + '">Edit</a>' +
         (paid ? '<a class="btn ghost sm" href="/api/orders/' + paid.id + '/download/png">PNG</a><a class="btn ghost sm" href="/api/orders/' + paid.id + '/download/pdf">PDF</a>' : "") +
-        '<button class="btn danger sm" type="button" data-del>Delete</button></div>' +
+        '<button class="btn ghost sm" type="button" data-share>Share preview</button><button class="btn danger sm" type="button" data-del>Delete</button></div>' +
         (q.slug && q.dyn_active ? '<div class="verify"><input type="url" value="' + esc(q.design.fields.url || "") + '" aria-label="Destination link"><button class="btn ghost sm" type="button" data-target>Update link</button></div>' : "");
       const del = el.querySelector("[data-del]");
       let armed = false;
       del.onclick = async () => {
         if (!armed) { armed = true; del.textContent = "Tap again to delete"; setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
         try { await api("/api/qrs/" + q.id, { method: "DELETE" }); toast("Deleted", "ok"); load(); } catch (e) { toast(e.message, "bad"); }
+      };
+      el.querySelector("[data-share]").onclick = async () => {
+        if (!confirm("Anyone with the link can see this poster preview, including the name and details printed on it (the QR itself is scrambled). Create the link?")) return;
+        try {
+          const r = await api("/api/qrs/" + q.id + "/share", { json: {} });
+          if (navigator.share) { try { await navigator.share({ title: q.title, url: r.url }); return; } catch (e) { /* fall back to copy */ } }
+          try { await navigator.clipboard.writeText(r.url); toast("Link copied", "ok"); } catch (e) { prompt("Copy this link", r.url); }
+        } catch (e) { toast(e.message, "bad"); }
       };
       const tb = el.querySelector("[data-target]");
       if (tb) tb.onclick = async () => { try { await api("/api/qrs/" + q.id + "/target", { json: { url: el.querySelector("input").value } }); toast("Link updated. Your printed QR now opens it.", "ok"); } catch (e) { toast(e.message, "bad"); } };
@@ -106,6 +114,43 @@
     box.appendChild(b);
   }
 
+  // invite and review
+  let stars = 0;
+  async function drawInvite() {
+    try {
+      const r = await api("/api/referral"), s = r.stats;
+      $("#invRule").textContent = r.rule;
+      $("#invLink").value = r.link;
+      const msg = "Make a UPI / Wi-Fi / WhatsApp QR poster in minutes with QR Studio: " + r.link;
+      $("#invWa").href = "https://wa.me/?text=" + encodeURIComponent(msg);
+      $("#invTg").href = "https://t.me/share/url?url=" + encodeURIComponent(r.link) + "&text=" + encodeURIComponent("Make a QR poster with QR Studio");
+      if (navigator.share) { const n = $("#invNative"); n.classList.remove("hide"); n.onclick = () => navigator.share({ title: "QR Studio", text: msg, url: r.link }).catch(() => {}); }
+      $("#invCopy").onclick = async () => { try { await navigator.clipboard.writeText(r.link); toast("Invite link copied", "ok"); } catch (e) { $("#invLink").select(); } };
+      const c = s.current;
+      $("#invText").textContent = s.available > 0 ? "You have " + s.available + " free download" + (s.available > 1 ? "s" : "") + " ready. Use it in the Studio." : "Friends joined: " + c.joined + " of " + s.per_group + ". Friends who paid: " + c.paid + ".";
+      $("#invBar").style.width = Math.min(100, Math.round((c.complete ? 100 : (c.joined / s.per_group) * 60 + (c.paid ? 40 : 0)))) + "%";
+      $("#invSub").textContent = "Total earned: " + s.earned + " · used: " + s.used + ". A friend counts when they pay for a download.";
+      $("#invFriends").innerHTML = s.friends.map((f) => "<div>" + esc(f.name) + ' — <span class="chip ' + (f.paid ? "ok" : "warn") + '">' + (f.paid ? "paid" : "joined") + "</span></div>").join("");
+    } catch (e) { /* ignore */ }
+    try {
+      const m = await api("/api/reviews/mine");
+      if (m.can_review) {
+        $("#revCard").classList.remove("hide");
+        if (m.review) { stars = m.review.stars; $("#revText").value = m.review.text; $("#revMsg").textContent = m.review.status === "approved" ? "Published, thank you!" : "Received. It will show after a quick check."; }
+        paintStars();
+      }
+    } catch (e) { /* ignore */ }
+  }
+  function paintStars() {
+    const box = $("#stars"); box.innerHTML = "";
+    for (let i = 1; i <= 5; i++) { const b = document.createElement("button"); b.type = "button"; b.textContent = "★"; b.setAttribute("aria-label", i + " stars"); if (i <= stars) b.className = "on"; b.onclick = () => { stars = i; paintStars(); }; box.appendChild(b); }
+  }
+  $("#revGo").onclick = async () => {
+    const m = $("#revMsg");
+    try { await api("/api/reviews", { json: { stars, text: $("#revText").value } }); m.className = "msg ok"; m.textContent = "Thank you! It will show after a quick check."; }
+    catch (e) { m.className = "msg bad"; m.textContent = e.message; }
+  };
+
   // account
   $("#pwForm").addEventListener("submit", async (e) => {
     e.preventDefault(); const m = $("#pwMsg");
@@ -118,7 +163,7 @@
     catch (err) { m.className = "msg bad"; m.textContent = err.message; }
   });
 
-  await load();
+  await load(); drawInvite();
   const h = location.hash.slice(1);
-  if (["qrs", "orders", "themes", "pass", "account"].includes(h)) tab(h);
+  if (["qrs", "orders", "themes", "invite", "pass", "account"].includes(h)) tab(h);
 })();

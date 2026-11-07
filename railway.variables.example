@@ -1,17 +1,16 @@
-# Railway -> your service -> Variables -> RAW Editor -> paste these (fill the values).
-# Keep this file free of real passwords. Put the Gmail App Password only inside Railway.
-
-PUBLIC_URL=https://qr.yourdomain.com
+PUBLIC_URL=https://qr.teamdev.sbs
+SITE_URL=https://qr.teamdev.sbs
 UPI_ID=yourname@fam
 PAYEE_NAME=TeamDev
-ADMIN_EMAILS=you@example.com
-
-# Fam payment emails
-GMAIL_USER=you@gmail.com
-GMAIL_APP_PASSWORD=
+ADMIN_EMAILS=armanhacker900@gmail.com
+GMAIL_USER=armanhacker900@gmail.com
+GMAIL_APP_PASSWORD=kmae mkpt ixyp yloq
 FAM_SENDER_DOMAINS=famapp.in
-
-# Website text
 SITE_NAME=QR Studio
 OWNER=TeamDev
-SUPPORT_EMAIL=you@example.com
+SUPPORT_EMAIL=teamdevmail@gmail.com
+SUPPORT_INSTAGRAM=its_iarmxn_khxn
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+GOOGLE_SITE_VERIFICATION=
+BING_SITE_VERIFICATION=

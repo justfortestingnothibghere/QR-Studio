@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS payments(
 CREATE TABLE IF NOT EXISTS downloads(
   id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL, user_id INTEGER NOT NULL, fmt TEXT NOT NULL, ts REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS reviews(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL UNIQUE, name TEXT NOT NULL, stars INTEGER NOT NULL,
+  text TEXT NOT NULL, created REAL NOT NULL, status TEXT NOT NULL DEFAULT 'pending');
+CREATE TABLE IF NOT EXISTS hits(
+  day INTEGER NOT NULL, path TEXT NOT NULL, src TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(day, path, src));
 CREATE TABLE IF NOT EXISTS events(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, actor TEXT NOT NULL, kind TEXT NOT NULL,
   ref TEXT, ip TEXT, detail TEXT);
@@ -67,6 +72,16 @@ def init():
         cols = {r["name"] for r in c.execute("PRAGMA table_info(payments)").fetchall()}
         if "txn_id" not in cols:                      # older databases: add the Fam transaction id column
             c.execute("ALTER TABLE payments ADD COLUMN txn_id TEXT NOT NULL DEFAULT ''")
+        ucols = {r["name"] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+        for col, ddl in (("ref_code", "TEXT"), ("referred_by", "INTEGER"), ("ref_credits_used", "INTEGER NOT NULL DEFAULT 0"), ("signup_src", "TEXT NOT NULL DEFAULT ''")):
+            if col not in ucols:
+                c.execute("ALTER TABLE users ADD COLUMN %s %s" % (col, ddl))
+        qcols = {r["name"] for r in c.execute("PRAGMA table_info(qrs)").fetchall()}
+        if "share_token" not in qcols:
+            c.execute("ALTER TABLE qrs ADD COLUMN share_token TEXT")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_refcode ON users(ref_code) WHERE ref_code IS NOT NULL")
+        c.execute("CREATE INDEX IF NOT EXISTS users_refby ON users(referred_by)")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS qrs_share ON qrs(share_token) WHERE share_token IS NOT NULL")
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS payments_txn ON payments(txn_id) WHERE txn_id<>''")
         c.execute("CREATE INDEX IF NOT EXISTS payments_amt ON payments(amount_paise, claimed_by)")
     finally:

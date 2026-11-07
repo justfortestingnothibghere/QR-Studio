@@ -25,3 +25,12 @@ Gmail Settings -> Forwarding and POP/IMAP -> IMAP enabled hona chahiye.
 - `/admin` -> "Download backup" se hafte me database backup lo.
 - Logs: Railway -> Deployments -> View logs (startup warnings yahin dikhte hain).
 - Zyada traffic par `WEB_CONCURRENCY=2` set karo.
+
+## Domain + Google SEO (qr.teamdev.sbs)
+1. Railway -> Settings -> Networking -> **Custom Domain** -> `qr.teamdev.sbs`. Jo CNAME target dikhe wo DNS me `qr` naam se add karo. Variables: `PUBLIC_URL` aur `SITE_URL` = `https://qr.teamdev.sbs`.
+2. https://search.google.com/search-console -> Add property -> URL prefix `https://qr.teamdev.sbs` -> HTML tag method. Meta tag ka `content="..."` wali value `GOOGLE_SITE_VERIFICATION` me daalo, redeploy, Verify dabao.
+3. Search Console -> Sitemaps -> `sitemap.xml` submit. Phir URL Inspection se `/` aur `/qr/upi-qr-code-poster` ke liye "Request indexing".
+4. Bing Webmaster Tools me bhi import/add karo (`BING_SITE_VERIFICATION`).
+5. Instagram bio me site link, aur apni invite link share karo. Index hone me 1-4 hafte lag sakte hain.
+6. Alerts: BotFather se bot banao, `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` set karo; Admin -> Settings me "Send test".
+7. Referral: 3 invites me se koi 1 paid kare to 1 free download (₹49 tak). Config: `QS__referral__invites_needed`, `QS__referral__credit_max_rupees`.

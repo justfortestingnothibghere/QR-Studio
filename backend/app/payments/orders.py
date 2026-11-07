@@ -25,14 +25,14 @@ def _insert(c, oid, user_id, kind, qr_id, paise, rupees, status, created, expire
               (oid, user_id, kind, qr_id, paise, rupees, status, created, expires, paid_at, utr, json.dumps(snapshot), label))
 
 
-def create_order(user_id: int, kind: str, rupees: int, qr_id, snapshot: dict, label: str) -> dict:
+def create_order(user_id: int, kind: str, rupees: int, qr_id, snapshot: dict, label: str, free_ref: str = "PASS") -> dict:
     mins = int(config.get("payments.order_expiry_minutes", 45))
     t = time.time()
     oid = "QS" + secrets.token_hex(4).upper()
     with db.tx() as c:
         _expire_old(c)
         if rupees == 0:
-            _insert(c, oid, user_id, kind, qr_id, 0, 0, "paid", t, t, t, "PASS", snapshot, label)
+            _insert(c, oid, user_id, kind, qr_id, 0, 0, "paid", t, t, t, free_ref, snapshot, label)
             return {"id": oid, "amount_paise": 0, "status": "paid", "expires": t}
         # a visitor must not be able to hog the 99 amount slots of a price point
         open_n = c.execute("SELECT COUNT(*) n FROM orders WHERE user_id=? AND status='pending' AND kind!='test'", (user_id,)).fetchone()["n"]
@@ -85,6 +85,12 @@ def _finish(c, o, pay_ref: str, via: str):
         c.execute("UPDATE qrs SET dyn_active=1 WHERE id=? AND user_id=?", (o["qr_id"], uid))
     c.execute("INSERT INTO events(ts,actor,kind,ref,ip,detail) VALUES(?,?,?,?,?,?)",
               (time.time(), "user:%d" % uid, "order_paid", o["id"], "", "via %s, ref %s, %.2f INR" % (via, pay_ref, o["amount_paise"] / 100)))
+    try:
+        from .. import notify
+        who = c.execute("SELECT email FROM users WHERE id=?", (uid,)).fetchone()
+        notify.send("Paid: Rs %.2f (%s)\n%s via %s\nOrder %s" % (o["amount_paise"] / 100, "pass" if o["kind"] == "pass" else o["kind"], who["email"] if who else uid, via, o["id"]))
+    except Exception:
+        pass
 
 
 def _window_ok(p, o) -> bool:

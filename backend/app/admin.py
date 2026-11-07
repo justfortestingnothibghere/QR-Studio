@@ -386,7 +386,7 @@ def meta_set(k, v):
 async def settings_get(request: Request):
     _admin(request, csrf=False)
     return ok({"announcement": meta_get("announcement"), "announcement_kind": meta_get("announcement_kind", "info"),
-               "signups_open": meta_get("signups_closed", "0") != "1"})
+               "signups_open": meta_get("signups_closed", "0") != "1", "telegram": __import__("app.notify", fromlist=["x"]).enabled()})
 
 
 async def settings_set(request: Request):
@@ -625,6 +625,49 @@ def auto_snapshot():
         old.unlink(missing_ok=True)
 
 
+# ---------------------------------------------------------------- growth, reviews, notifications
+async def growth_stats(request: Request):
+    _admin(request, csrf=False)
+    today = int((time.time() + 19800) // 86400)
+    since = today - 13
+    days = {r["day"]: r["n"] for r in db.many("SELECT day, SUM(n) n FROM hits WHERE day>=? GROUP BY day", (since,))}
+    series = [{"label": time.strftime("%d %b", time.gmtime((d * 86400))), "v": days.get(d, 0)} for d in range(since, today + 1)]
+    pages = db.many("SELECT path, SUM(n) n FROM hits WHERE day>=? GROUP BY path ORDER BY n DESC LIMIT 15", (since,))
+    srcs = db.many("SELECT src, SUM(n) n FROM hits WHERE day>=? GROUP BY src ORDER BY n DESC LIMIT 12", (since,))
+    sign = db.many("SELECT COALESCE(NULLIF(signup_src,''),'unknown') src, COUNT(*) n FROM users GROUP BY 1 ORDER BY n DESC LIMIT 12")
+    board = db.many(
+        "SELECT r.id, r.name, r.email, COUNT(u.id) joined, "
+        "SUM(EXISTS(SELECT 1 FROM orders o WHERE o.user_id=u.id AND o.status='paid' AND o.rupees>0 AND o.kind IN ('export','pass'))) paid, r.ref_credits_used used "
+        "FROM users r JOIN users u ON u.referred_by=r.id GROUP BY r.id ORDER BY joined DESC LIMIT 20")
+    return ok({"series": series, "views": sum(x["v"] for x in series), "pages": pages, "sources": srcs, "signups": sign, "referrers": board})
+
+
+async def reviews_admin(request: Request):
+    _admin(request, csrf=False)
+    return ok({"reviews": db.many("SELECT id,user_id,name,stars,text,created,status FROM reviews ORDER BY (status='pending') DESC, created DESC LIMIT 200")})
+
+
+async def review_status(request: Request):
+    u = _admin(request)
+    d = await body(request, 500)
+    st = d.get("status")
+    if st not in ("approved", "rejected", "pending"):
+        raise ApiError(400, "Bad status")
+    rid = int(request.path_params["rid"])
+    db.run("UPDATE reviews SET status=? WHERE id=?", (st, rid))
+    _log(u, "review_" + st, str(rid), "", request)
+    return ok()
+
+
+async def notify_test(request: Request):
+    _admin(request)
+    from . import notify
+    if not notify.enabled():
+        raise ApiError(400, "Telegram is not set. Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in Railway Variables.")
+    notify.send("Test alert from QR Studio admin. Alerts are working.", key="test", every=0)
+    return ok()
+
+
 def routes():
     P = "/api/admin"
     return [
@@ -637,5 +680,6 @@ def routes():
         Route(P + "/qrs", qrs_list), Route(P + "/qrs/{qid:int}", qr_delete, methods=["DELETE"]),
         Route(P + "/events", events_list), Route(P + "/settings", settings_get), Route(P + "/settings", settings_set, methods=["POST"]),
         Route(P + "/system", system_info), Route(P + "/system/clear-cache", clear_cache, methods=["POST"]),
+        Route(P + "/growth", growth_stats), Route(P + "/reviews", reviews_admin), Route(P + "/reviews/{rid:int}", review_status, methods=["POST"]), Route(P + "/notify-test", notify_test, methods=["POST"]),
         Route(P + "/backup", backup), Route(P + "/restore", restore, methods=["POST"]),
     ]

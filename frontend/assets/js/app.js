@@ -140,11 +140,23 @@
     (function tick(t) { const p = Math.min(1, (t - t0) / dur), v = Math.round(to * (1 - Math.pow(1 - p, 3))); el.textContent = fmt ? fmt(v) : v; if (p < 1) requestAnimationFrame(tick); })(t0);
   };
 
+  // blue verified tick (generic check badge, not a third-party logo)
+  QS.tick = '<svg class="vtick" viewBox="0 0 24 24" width="16" height="16" role="img" aria-label="Verified"><path fill="#1d9bf0" d="M12 1.6l2.5 1.9 3.1-.1 1 2.9 2.5 1.8-.9 3 .9 3-2.5 1.8-1 2.9-3.1-.1L12 22.4l-2.5-1.9-3.1.1-1-2.9-2.5-1.8.9-3-.9-3 2.5-1.8 1-2.9 3.1.1z"/><path fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M7.8 12.2l3 3 5.6-6"/></svg>';
+  QS.igLink = function () {
+    const h = (QS.site.support_instagram || "").replace(/^@/, "");
+    if (!h) return "";
+    return '<a class="iglink" href="https://www.instagram.com/' + encodeURIComponent(h) + '" target="_blank" rel="noopener me">@' + esc(h) + '</a>' + (QS.site.instagram_verified ? QS.tick : "");
+  };
+
   function footer() {
     const el = $("#footer");
     if (!el) return;
     el.className = "footer";
-    el.innerHTML = '<div class="wrap"><div>© ' + new Date().getFullYear() + ' ' + esc(QS.site.owner) + '. ' + esc(QS.site.site_name) + ' is built and run by ' + esc(QS.site.owner) + '.' + (QS.site.support_email ? ' Support: <span class="mono">' + esc(QS.site.support_email) + '</span>' : '') + '</div><nav><a href="/how-it-works">How it works</a><a href="/faq">FAQ</a><a href="/contact">Support</a><a href="/pricing">Pricing</a><a href="/refund">Refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></nav></div>';
+    const ig = QS.igLink();
+    el.innerHTML = '<div class="wrap"><div>© ' + new Date().getFullYear() + ' ' + esc(QS.site.owner) + '. ' + esc(QS.site.site_name) + ' is built and run by ' + esc(QS.site.owner) + '.' +
+      (QS.site.support_email ? ' Support: <a class="mono" href="mailto:' + esc(QS.site.support_email) + '">' + esc(QS.site.support_email) + '</a>' : '') +
+      (ig ? '<div class="small pad">Follow us: ' + ig + '</div>' : '') + '</div>' +
+      '<nav><a href="/qr">QR types</a><a href="/guides">Guides</a><a href="/about">About</a><a href="/how-it-works">How it works</a><a href="/faq">FAQ</a><a href="/contact">Support</a><a href="/pricing">Pricing</a><a href="/refund">Refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></nav></div>';
   }
 
   // shield: stop easy right-click saving of previews (deterrent only, the real protection is the server-side watermark)
@@ -152,6 +164,22 @@
     el.addEventListener("contextmenu", (e) => e.preventDefault());
     el.addEventListener("dragstart", (e) => e.preventDefault());
   };
+
+  // first-touch invite code and traffic source, kept for signup
+  (function () {
+    try {
+      const q = new URLSearchParams(location.search);
+      const ref = (q.get("ref") || "").trim().slice(0, 16);
+      if (ref && /^[A-Za-z0-9]+$/.test(ref) && !localStorage.getItem("qs_ref")) localStorage.setItem("qs_ref", ref);
+      if (!localStorage.getItem("qs_src")) {
+        let src = q.get("utm_source") || q.get("src") || "";
+        if (!src && ref) src = "invite";
+        if (!src && document.referrer) { try { const h = new URL(document.referrer).hostname; if (h !== location.hostname) src = h.replace(/^www\./, ""); } catch (e) {} }
+        localStorage.setItem("qs_src", (src || "direct").slice(0, 40));
+      }
+    } catch (e) {}
+  })();
+  QS.stored = function (k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
 
   QS.ready = (async function () {
     await QS.load();

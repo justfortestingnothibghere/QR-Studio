@@ -125,7 +125,9 @@ def store_payment(info: dict, source: str) -> bool:
         db.log_event("system", "payment_in", info["utr"], "", "%s paise via %s%s" % (info["amount_paise"], source, "" if info.get("real_utr") else " (no UTR)"))
         try:
             from . import orders
-            orders.auto_match(info["utr"])          # the order is unlocked without the customer typing anything
+            if not orders.auto_match(info["utr"]):      # the order is unlocked without the customer typing anything
+                from .. import notify
+                notify.send("Payment received but no order matched: Rs %.2f\nRef %s, payer %s\nThe customer may still be on the payment page, or paid a wrong amount." % (info["amount_paise"] / 100, info["utr"], info.get("payer") or "?"))
         except Exception as e:
             print("[qrstudio] auto-match error:", e, flush=True)
     return n == 1

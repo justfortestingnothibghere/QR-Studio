@@ -4,4 +4,5 @@
   QS.$("#ctMail").innerHTML = m ? '<a href="mailto:' + QS.esc(m) + '">' + QS.esc(m) + "</a>" : "Not set yet";
   const h = (t || "").replace(/^@/, "");
   QS.$("#ctTg").innerHTML = h ? '<a href="https://t.me/' + encodeURIComponent(h) + '" target="_blank" rel="noopener">@' + QS.esc(h) + "</a>" : "Not set yet";
+  QS.$("#ctIg").innerHTML = QS.igLink() || "Not set yet";
 })();

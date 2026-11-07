@@ -4,5 +4,8 @@
   "tagline": "Your QR code, as a poster people remember.",
   "support_email": "teamdevmail@gmail.com",
   "support_telegram": "",
-  "show_pass_banner": true
+  "show_pass_banner": true,
+  "support_instagram": "its_iarmxn_khxn",
+  "instagram_verified": true,
+  "site_url": "https://qr.teamdev.sbs"
 }

@@ -23,7 +23,7 @@ from .payments import fam, orders
 from .render import engine, qrdraw
 from .security import ApiError, rate_limit, require_user
 from .util import body, ok
-from . import admin
+from . import admin, growth, notify, referrals, seo
 
 RATE = lambda k, d: int(config.get("limits.rate." + k, d))  # noqa: E731
 SAMPLE = {"kind": "upi", "fields": {"upi_id": "yourname@upi"}, "name": "Arman Khan", "title": "Your Pocket UPI QR",
@@ -65,7 +65,11 @@ async def signup(request: Request):
         security.burn_time()
         raise ApiError(409, "An account with this email already exists. Log in instead.")
     is_admin = 1 if email in [e.lower() for e in config.get("admin.emails", [])] else 0
-    uid, _ = db.run("INSERT INTO users(email,name,pw_hash,created,is_admin) VALUES(?,?,?,?,?)", (email, name, await run_in_threadpool(security.hash_password, pw), time.time(), is_admin))
+    ref_by = referrals.find_referrer(str(d.get("ref", "")))
+    src = re.sub(r"[^a-z0-9._:-]", "", str(d.get("src", "")).lower())[:40]
+    uid, _ = db.run("INSERT INTO users(email,name,pw_hash,created,is_admin,referred_by,signup_src) VALUES(?,?,?,?,?,?,?)",
+                    (email, name, await run_in_threadpool(security.hash_password, pw), time.time(), is_admin, ref_by, ("invite" if ref_by else src)))
+    notify.send("New signup: %s%s" % (name, " (invited)" if ref_by else (" via " + src if src else "")), key="signup", every=0)
     resp = ok({"user": public_user(db.one("SELECT * FROM users WHERE id=?", (uid,)))})
     security.set_cookie(resp, security.create_session(request, uid))
     return resp
@@ -96,7 +100,13 @@ async def logout(request: Request):
 
 async def me(request: Request):
     u, s = security.current(request)
-    return ok({"user": public_user(u), "csrf": s["csrf"] if s else None,
+    pu = public_user(u)
+    if pu:
+        try:
+            pu["credits"] = referrals.stats(u["id"])["available"]
+        except Exception:
+            pu["credits"] = 0
+    return ok({"user": pu, "csrf": s["csrf"] if s else None,
                "pricing": config.get("pricing"), "payments_mode": config.get("payments.mode"), "upi_id": config.get("payments.upi_id")})
 
 
@@ -364,8 +374,8 @@ async def order_create(request: Request):
     rate_limit("order", str(u["id"]), RATE("order_per_10min", 20), 600)
     d = await body(request)
     kind = d.get("kind", "export")
-    payments_ready()
     if kind == "pass":
+        payments_ready()
         rupees = int(config.get("pricing.pass_price", 99))
         o = orders.create_order(u["id"], "pass", rupees, None, {"pass": True}, "%d-day unlimited pass" % config.get("pricing.pass_days", 30))
     else:
@@ -382,7 +392,20 @@ async def order_create(request: Request):
         if active_pass:
             rupees = 0
         snap = {"design": design, "theme_id": theme["id"], "slug": r["slug"], "dynamic": design.get("dynamic", False), "print": print_pack}
-        o = orders.create_order(u["id"], "export", rupees, r["id"], snap, r["title"])
+        use_credit = bool(d.get("use_credit")) and rupees > 0
+        if use_credit:
+            if rupees > referrals.credit_max():
+                raise ApiError(422, "A free credit covers designs up to ₹%d. Remove an extra (print pack, dynamic link or logo) or pay." % referrals.credit_max())
+            referrals.consume(u["id"])
+            try:
+                o = orders.create_order(u["id"], "export", 0, r["id"], snap, r["title"] + " (invite credit)", free_ref="INVITE-CREDIT")
+            except Exception:
+                referrals.refund(u["id"])
+                raise
+        else:
+            if rupees > 0:
+                payments_ready()
+            o = orders.create_order(u["id"], "export", rupees, r["id"], snap, r["title"])
         if active_pass and snap["dynamic"]:
             db.run("UPDATE qrs SET dyn_active=1 WHERE id=?", (r["id"],))
     row = db.one("SELECT * FROM orders WHERE id=?", (o["id"],))
@@ -525,39 +548,26 @@ async def health(request: Request):
 # ---------------- pages / static ----------------
 PAGES = {"/": "index.html", "/studio": "studio.html", "/themes": "themes.html", "/pricing": "pricing.html", "/login": "login.html", "/signup": "signup.html",
          "/dashboard": "dashboard.html", "/theme-maker": "theme-maker.html", "/admin": "admin.html", "/terms": "terms.html", "/privacy": "privacy.html",
-         "/faq": "faq.html", "/contact": "contact.html", "/refund": "refund.html", "/receipt": "receipt.html", "/how-it-works": "how-it-works.html"}
+         "/faq": "faq.html", "/contact": "contact.html", "/refund": "refund.html", "/receipt": "receipt.html", "/how-it-works": "how-it-works.html", "/about": "about.html"}
 
 
 async def robots(request: Request):
-    base = (config.get("server.public_url") or "").rstrip("/")
-    return Response("User-agent: *\nDisallow: /api/\nDisallow: /admin\nDisallow: /dashboard\nDisallow: /receipt\nDisallow: /r/\nSitemap: %s/sitemap.xml\n" % base, media_type="text/plain")
+    return Response(seo.robots_txt(), media_type="text/plain")
 
 
 async def sitemap(request: Request):
-    base = (config.get("server.public_url") or "").rstrip("/")
-    urls = ["/", "/themes", "/pricing", "/how-it-works", "/faq", "/contact", "/refund", "/terms", "/privacy", "/signup", "/login"]
-    xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + "".join("<url><loc>%s%s</loc></url>" % (base, u) for u in urls) + "</urlset>"
-    return Response(xml, media_type="application/xml")
+    return Response(await run_in_threadpool(seo.sitemap_xml), media_type="application/xml")
 
 
-_ASSET_REF = re.compile(r'(/assets/[A-Za-z0-9_./-]+\.(?:js|css))(?=["\'])')
+async def manifest(request: Request):
+    return JSONResponse(seo.manifest(), media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"})
 
 
-def asset_version() -> str:
-    """Changes whenever any .js/.css file changes, so browsers never run a stale script after a deploy."""
-    import hashlib
-    h = hashlib.sha1()
-    for f in sorted((config.frontend_dir() / "assets").rglob("*")):
-        if f.suffix in (".js", ".css"):
-            st = f.stat()
-            h.update(("%s%d%d" % (f.name, st.st_size, int(st.st_mtime))).encode())
-    return h.hexdigest()[:10]
-
-
-def html_page(p, status=200):
-    ver = asset_version()
-    text = _ASSET_REF.sub(lambda m: m.group(1) + "?v=" + ver, p.read_text(encoding="utf-8"))
-    return HTMLResponse(text, status_code=status, headers={"Cache-Control": "no-cache, must-revalidate"})
+def html_page(p, status=200, path=None):
+    text = p.read_text(encoding="utf-8")
+    if path:
+        text = seo.inject_static(text, path)
+    return HTMLResponse(seo.finalize(text), status_code=status, headers={"Cache-Control": "no-cache, must-revalidate"})
 
 
 def page_route(path, fname):
@@ -565,7 +575,8 @@ def page_route(path, fname):
         p = config.frontend_dir() / fname
         if not p.exists():
             return HTMLResponse("Frontend not found", status_code=500)
-        return html_page(p)
+        growth.hit(request, path)
+        return html_page(p, path=path)
     return Route(path, h, methods=["GET", "HEAD"])
 
 
@@ -575,9 +586,10 @@ async def site_config(request: Request):
         data = json.loads(p.read_text(encoding="utf-8"))
     except Exception:
         data = {}
-    for env, key in (("SITE_NAME", "site_name"), ("OWNER", "owner"), ("SUPPORT_EMAIL", "support_email"), ("SUPPORT_TELEGRAM", "support_telegram")):
+    for env, key in (("SITE_NAME", "site_name"), ("OWNER", "owner"), ("SUPPORT_EMAIL", "support_email"), ("SUPPORT_TELEGRAM", "support_telegram"), ("SUPPORT_INSTAGRAM", "support_instagram")):
         if os.environ.get(env):
             data[key] = os.environ[env]
+    data["site_url"] = config.site_url()
     try:
         data["announcement"] = admin.meta_get("announcement")
         data["announcement_kind"] = admin.meta_get("announcement_kind", "info")
@@ -586,11 +598,25 @@ async def site_config(request: Request):
     return JSONResponse(data, headers={"Cache-Control": "no-cache"})
 
 
+def _seo_route(path, fn, arg=None):
+    async def h(request: Request):
+        html = fn(request.path_params[arg]) if arg else fn()
+        if html is not None:
+            growth.hit(request, request.url.path)
+        if html is None:
+            return HTMLResponse(seo.not_found_html(), status_code=404, headers={"Cache-Control": "no-cache"})
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache, must-revalidate"})
+    return Route(path, h, methods=["GET", "HEAD"])
+
+
+SEO_ROUTES = [_seo_route("/qr", seo.qr_index_html), _seo_route("/qr/{slug}", seo.type_html, "slug"), _seo_route("/guides", seo.guides_index_html),
+              _seo_route("/guides/{slug}", seo.guide_html, "slug"), _seo_route("/themes/{tid}", seo.theme_html, "tid")]
+
+
 async def not_found_page(request: Request, exc):
     if request.url.path.startswith("/api/"):
         return JSONResponse({"error": "Not found"}, status_code=404)
-    p = config.frontend_dir() / "404.html"
-    return html_page(p, 404) if p.exists() else HTMLResponse("Not found", status_code=404)
+    return HTMLResponse(seo.not_found_html(), status_code=404, headers={"Cache-Control": "no-cache"})
 
 
 async def api_error(request: Request, exc: ApiError):
@@ -692,7 +718,7 @@ async def lifespan(app):
 def build_app():
     db.init()
     routes = [
-        Route("/api/health", health), Route("/config.json", site_config), Route("/robots.txt", robots), Route("/sitemap.xml", sitemap),
+        Route("/api/health", health), Route("/config.json", site_config), Route("/robots.txt", robots), Route("/sitemap.xml", sitemap), Route("/manifest.webmanifest", manifest),
         Route("/api/signup", signup, methods=["POST"]), Route("/api/login", login, methods=["POST"]), Route("/api/logout", logout, methods=["POST"]),
         Route("/api/me", me), Route("/api/password", change_password, methods=["POST"]), Route("/api/account/delete", delete_account, methods=["POST"]),
         Route("/api/themes", list_themes), Route("/api/themes/{tid}/thumb", theme_thumb), Route("/api/themes/upload", theme_upload, methods=["POST"]),
@@ -705,7 +731,7 @@ def build_app():
         Route("/api/orders/{oid}", order_get), Route("/api/orders/{oid}/verify", order_verify, methods=["POST"]),
         Route("/api/orders/{oid}/simulate", dev_simulate, methods=["POST"]), Route("/api/orders/{oid}/payqr", order_payqr),
         Route("/api/orders/{oid}/download/{fmt}", download),
-        *admin.routes(),
+        *admin.routes(), *growth.routes(), *SEO_ROUTES,
         Route("/r/{slug}", redirect_slug),
     ]
     routes += [page_route(p, f) for p, f in PAGES.items()]

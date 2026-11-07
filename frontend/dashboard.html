@@ -20,12 +20,20 @@
   <button role="tab" data-tab="qrs" aria-selected="true">My QRs</button>
   <button role="tab" data-tab="orders" aria-selected="false">History</button>
   <button role="tab" data-tab="themes" aria-selected="false">My themes</button>
+  <button role="tab" data-tab="invite" aria-selected="false">Invite &amp; earn</button>
   <button role="tab" data-tab="pass" aria-selected="false">Pass</button>
   <button role="tab" data-tab="account" aria-selected="false">Account</button>
 </div>
 <section data-pane="qrs"><div class="qgrid" id="qgrid"></div><p class="muted hide" id="qempty">No saved QRs yet. <a href="/studio">Open the Studio</a> to make one.</p></section>
 <section data-pane="orders" class="hide"><div class="card tablewrap"><table><thead><tr><th>Order</th><th>For</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody id="obody"></tbody></table></div></section>
 <section data-pane="themes" class="hide"><div class="tgrid" id="mythemes"></div><p class="muted hide" id="tempty">You have no custom themes. <a href="/theme-maker">Make one</a>.</p></section>
+<section data-pane="invite" class="hide stack">
+  <div class="card"><h2>Invite 3 friends, get 1 free download</h2><p class="muted" id="invRule"></p>
+    <div class="verify pad"><input id="invLink" type="text" readonly aria-label="Your invite link"><button class="btn" id="invCopy" type="button">Copy link</button></div>
+    <div class="row pad"><a class="btn ghost sm" id="invWa" target="_blank" rel="noopener">Share on WhatsApp</a><a class="btn ghost sm" id="invTg" target="_blank" rel="noopener">Share on Telegram</a><button class="btn ghost sm hide" id="invNative" type="button">More…</button></div></div>
+  <div class="card"><h3>Your progress</h3><p id="invText" class="muted"></p><div class="refbar pad"><i id="invBar"></i></div><p class="small muted pad" id="invSub"></p><div id="invFriends" class="small"></div></div>
+  <div class="card hide" id="revCard"><h3>Rate QR Studio</h3><p class="small muted">Only customers who downloaded can review. We show reviews after a quick check.</p><div class="stars" id="stars"></div><div class="field pad"><label for="revText">Your experience</label><textarea id="revText" maxlength="300"></textarea></div><button class="btn" id="revGo" type="button">Send review</button> <span class="msg" id="revMsg" role="status"></span></div>
+</section>
 <section data-pane="pass" class="hide"><div class="card"><h2>Unlimited pass</h2><p class="muted" id="passText"></p><div id="passPay" class="pad"></div></div></section>
 <section data-pane="account" class="hide stack">
   <div class="card"><h3>Change password</h3><form id="pwForm" class="stack pad" novalidate><div class="grid2"><div class="field"><label for="oldpw">Current password</label><input id="oldpw" type="password" autocomplete="current-password"></div><div class="field"><label for="newpw">New password</label><input id="newpw" type="password" autocomplete="new-password"></div></div><div><button class="btn" type="submit">Update password</button></div><p class="msg" id="pwMsg" role="status"></p></form></div>

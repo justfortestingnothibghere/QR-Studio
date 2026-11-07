@@ -3,7 +3,11 @@ import re
 from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 
-KINDS = ("upi", "url", "text", "wifi", "contact")
+KINDS = ("upi", "url", "text", "wifi", "contact", "whatsapp", "instagram", "youtube", "maps", "email", "sms", "phone", "telegram")
+HANDLE_RE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
+TG_RE = re.compile(r"^[A-Za-z0-9_]{4,32}$")
+MAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[A-Za-z]{2,24}$")
+YT_RE = re.compile(r"^(https?://)?(www\.|m\.)?(youtube\.com|youtu\.be)/[^\s]{2,200}$", re.I)
 UPI_RE = re.compile(r"^[A-Za-z0-9._\-]{2,64}@[A-Za-z0-9._\-]{2,64}$")
 HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 URL_RE = re.compile(r"^https?://[^\s]{3,480}$", re.I)
@@ -15,6 +19,16 @@ class DesignError(ValueError):
 
 def _s(v, n):
     return str(v if v is not None else "").replace("\x00", "").strip()[:n]
+
+
+def _phone(v: str) -> str:
+    """Digits with country code. A bare 10 digit number is taken as an Indian mobile (+91)."""
+    d = re.sub(r"\D", "", v or "")
+    if len(d) == 10:
+        d = "91" + d
+    if not 8 <= len(d) <= 15:
+        raise DesignError("Enter the phone number with country code, like 919876543210")
+    return d
 
 
 def clean_design(raw: dict) -> dict:
@@ -58,6 +72,45 @@ def clean_design(raw: dict) -> dict:
         f["email"] = _s(f_in.get("email"), 80)
         if not (f["phone"] or f["email"]):
             raise DesignError("Add a phone number or email")
+
+    elif kind == "whatsapp":
+        f["phone"] = _phone(_s(f_in.get("phone"), 20))
+        f["message"] = _s(f_in.get("message"), 200)
+    elif kind == "instagram":
+        h = _s(f_in.get("handle"), 60).lstrip("@")
+        h = re.sub(r"^https?://(www\.)?instagram\.com/", "", h, flags=re.I).strip("/").split("?")[0]
+        if not HANDLE_RE.match(h):
+            raise DesignError("Enter your Instagram username, like its_iarmxn_khxn")
+        f["handle"] = h
+    elif kind == "youtube":
+        f["url"] = _s(f_in.get("url"), 220)
+        if f["url"].startswith("@"):
+            f["url"] = "https://www.youtube.com/" + f["url"]
+        if not YT_RE.match(f["url"]):
+            raise DesignError("Paste a YouTube link or a handle like @yourchannel")
+        if not f["url"].lower().startswith("http"):
+            f["url"] = "https://" + f["url"]
+    elif kind == "maps":
+        f["query"] = _s(f_in.get("query"), 200)
+        if len(f["query"]) < 3:
+            raise DesignError("Enter a place name, an address, or latitude,longitude")
+    elif kind == "email":
+        f["to"] = _s(f_in.get("to"), 100)
+        if not MAIL_RE.match(f["to"]):
+            raise DesignError("Enter a valid email address")
+        f["subject"] = _s(f_in.get("subject"), 100)
+        f["message"] = _s(f_in.get("message"), 300)
+    elif kind == "sms":
+        f["phone"] = "+" + _phone(_s(f_in.get("phone"), 20))
+        f["message"] = _s(f_in.get("message"), 160)
+    elif kind == "phone":
+        f["phone"] = "+" + _phone(_s(f_in.get("phone"), 20))
+    elif kind == "telegram":
+        h = _s(f_in.get("handle"), 60).lstrip("@")
+        h = re.sub(r"^https?://(www\.)?t\.me/", "", h, flags=re.I).strip("/")
+        if not TG_RE.match(h):
+            raise DesignError("Enter your Telegram username (5 to 32 letters, digits or _)")
+        f["handle"] = h
 
     st_in = raw.get("style") or {}
     style = {
@@ -112,6 +165,27 @@ def build_payload(design: dict, public_url: str = "", slug: str = "") -> str:
             lines.append("EMAIL:" + f["email"])
         lines.append("END:VCARD")
         return "\n".join(lines)
+    if k == "whatsapp":
+        return "https://wa.me/" + f["phone"] + ("?text=" + quote(f["message"], safe="") if f.get("message") else "")
+    if k == "instagram":
+        return "https://www.instagram.com/" + f["handle"]
+    if k == "youtube":
+        return f["url"]
+    if k == "maps":
+        return "https://www.google.com/maps/search/?api=1&query=" + quote(f["query"], safe="")
+    if k == "email":
+        q = []
+        if f.get("subject"):
+            q.append("subject=" + quote(f["subject"], safe=""))
+        if f.get("message"):
+            q.append("body=" + quote(f["message"], safe=""))
+        return "mailto:" + f["to"] + ("?" + "&".join(q) if q else "")
+    if k == "sms":
+        return "SMSTO:" + f["phone"] + ":" + f.get("message", "")
+    if k == "phone":
+        return "tel:" + f["phone"]
+    if k == "telegram":
+        return "https://t.me/" + f["handle"]
     raise DesignError("Unknown type")
 
 
@@ -127,4 +201,18 @@ def id_line(design: dict) -> str:
         return "WiFi : " + f["ssid"][:24]
     if k == "contact":
         return ((design.get("name") or "") + " · " + (f.get("phone") or f.get("email") or ""))[:32]
+    if k == "whatsapp":
+        return "WhatsApp : +" + f["phone"]
+    if k == "instagram":
+        return "Instagram : @" + f["handle"]
+    if k == "youtube":
+        return re.sub(r"^https?://(www\.)?", "", f["url"])[:30]
+    if k == "maps":
+        return "Map : " + f["query"][:24]
+    if k == "email":
+        return "Email : " + f["to"][:24]
+    if k in ("sms", "phone"):
+        return ("SMS : " if k == "sms" else "Call : ") + f["phone"]
+    if k == "telegram":
+        return "Telegram : @" + f["handle"]
     return ""
